@@ -27,7 +27,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             SingleWriter = false
         });
 
-        using var monitor = MonitorFactory.Instance.Create(SCardScope.System);
+        ISCardMonitor? monitor = null;
         string? currentReader = null;
         string? presentUid = null;
         var announcedMissingReader = false;
@@ -57,9 +57,21 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             Publish(new NfcReaderEvent(NfcReaderEventKind.TagRemoved, currentReader));
         }
 
-        monitor.CardInserted += OnInserted;
-        monitor.CardRemoved += OnRemoved;
-        monitor.MonitorException += (_, args) => _logger.LogWarning(args, "PC/SC monitor exception");
+        void OnMonitorException(object? _, PCSCException args) =>
+            _logger.LogWarning(args, "PC/SC monitor exception");
+
+        void ReleaseMonitor()
+        {
+            if (monitor is null)
+            {
+                return;
+            }
+
+            Detach(monitor, OnInserted, OnRemoved, OnMonitorException);
+            TryStop(monitor);
+            DisposeMonitor(monitor);
+            monitor = null;
+        }
 
         try
         {
@@ -73,7 +85,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                         currentReader = null;
                         presentUid = null;
                         announcedMissingReader = true;
-                        TryStop(monitor);
+                        ReleaseMonitor();
                         Publish(new NfcReaderEvent(
                             NfcReaderEventKind.ReaderLost,
                             ErrorMessage: "Kein NFC-Leser gefunden.",
@@ -83,17 +95,22 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                 else if (!string.Equals(currentReader, readerName, StringComparison.OrdinalIgnoreCase))
                 {
                     announcedMissingReader = false;
-                    TryStop(monitor);
-                    currentReader = readerName;
-                    Publish(new NfcReaderEvent(NfcReaderEventKind.ReaderAvailable, readerName));
-                    monitor.Start(readerName);
-                    TryReadAndPublish(readerName, Publish, ref presentUid);
+                    ReleaseMonitor();
+                    if (!TryStartMonitor(readerName, OnInserted, OnRemoved, OnMonitorException, out monitor))
+                    {
+                        currentReader = null;
+                        presentUid = null;
+                    }
+                    else
+                    {
+                        currentReader = readerName;
+                        Publish(new NfcReaderEvent(NfcReaderEventKind.ReaderAvailable, readerName));
+                        TryReadAndPublish(readerName, Publish, ref presentUid);
+                    }
                 }
 
-                foreach (var evt in await ReadEventsAsync(
-                             channel,
-                             readerName is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromMilliseconds(400),
-                             cancellationToken))
+                var wait = currentReader is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromMilliseconds(400);
+                foreach (var evt in await ReadEventsUntilDeviceChangeAsync(channel, wait, cancellationToken))
                 {
                     yield return evt;
                 }
@@ -101,24 +118,171 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
         }
         finally
         {
-            monitor.CardInserted -= OnInserted;
-            monitor.CardRemoved -= OnRemoved;
-            TryStop(monitor);
+            ReleaseMonitor();
             channel.Writer.TryComplete();
+        }
+    }
+
+    private bool TryStartMonitor(
+        string readerName,
+        CardInsertedEvent OnInserted,
+        CardRemovedEvent OnRemoved,
+        MonitorExceptionEvent OnMonitorException,
+        out ISCardMonitor? monitor)
+    {
+        monitor = null;
+        ISCardMonitor? started = null;
+        try
+        {
+            started = MonitorFactory.Instance.Create(SCardScope.System);
+            started.CardInserted += OnInserted;
+            started.CardRemoved += OnRemoved;
+            started.MonitorException += OnMonitorException;
+            started.Start(readerName);
+            monitor = started;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to start NFC monitor for {Reader}", readerName);
+            if (started is not null)
+            {
+                Detach(started, OnInserted, OnRemoved, OnMonitorException);
+                TryStop(started);
+                DisposeMonitor(started);
+            }
+
+            monitor = null;
+            return false;
+        }
+    }
+
+    private static void Detach(
+        ISCardMonitor monitor,
+        CardInsertedEvent onInserted,
+        CardRemovedEvent onRemoved,
+        MonitorExceptionEvent onMonitorException)
+    {
+        monitor.CardInserted -= onInserted;
+        monitor.CardRemoved -= onRemoved;
+        monitor.MonitorException -= onMonitorException;
+    }
+
+    private async Task<List<NfcReaderEvent>> ReadEventsUntilDeviceChangeAsync(
+        Channel<NfcReaderEvent> channel,
+        TimeSpan wait,
+        CancellationToken cancellationToken)
+    {
+        using var done = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        done.CancelAfter(wait);
+        var deviceChange = Task.Run(() =>
+        {
+            if (WaitForReaderChange(wait, done.Token))
+            {
+                try
+                {
+                    done.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // the wait already finished
+                }
+            }
+        }, CancellationToken.None);
+
+        List<NfcReaderEvent> events;
+        try
+        {
+            events = await ReadEventsAsync(channel, done.Token, cancellationToken);
+        }
+        finally
+        {
+            try
+            {
+                done.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // already completed
+            }
+        }
+
+        try
+        {
+            await deviceChange.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogDebug("PC/SC reader-change wait did not return in time");
+        }
+
+        return events;
+    }
+
+    private bool WaitForReaderChange(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var context = ContextFactory.Instance.Establish(SCardScope.System);
+            using var state = new SCardReaderState
+            {
+                ReaderName = @"\\?PnP?\Notification",
+                CurrentState = SCRState.Unaware
+            };
+
+            var states = new[] { state };
+            if (context.GetStatusChange(IntPtr.Zero, states) != SCardError.Success)
+            {
+                return false;
+            }
+
+            state.CurrentState = state.EventState & ~SCRState.Changed;
+            using var registration = cancellationToken.Register(static cardContext =>
+            {
+                if (cardContext is ISCardContext active)
+                {
+                    try
+                    {
+                        active.Cancel();
+                    }
+                    catch (PCSCException)
+                    {
+                        // the wait already finished
+                    }
+                }
+            }, context);
+
+            var milliseconds = (int)Math.Clamp(timeout.TotalMilliseconds, 0, int.MaxValue);
+            return context.GetStatusChange((IntPtr)milliseconds, states) == SCardError.Success;
+        }
+        catch (PCSCException ex) when (ex.SCardError is SCardError.Timeout
+                                       or SCardError.Cancelled
+                                       or SCardError.NoReadersAvailable
+                                       or SCardError.NoService)
+        {
+            return false;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "PC/SC reader change wait failed");
+            return false;
         }
     }
 
     private static async Task<List<NfcReaderEvent>> ReadEventsAsync(
         Channel<NfcReaderEvent> channel,
-        TimeSpan wait,
+        CancellationToken waitToken,
         CancellationToken cancellationToken)
     {
         var events = new List<NfcReaderEvent>();
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(wait);
         try
         {
-            while (await channel.Reader.WaitToReadAsync(timeout.Token))
+            while (await channel.Reader.WaitToReadAsync(waitToken))
             {
                 while (channel.Reader.TryRead(out var evt))
                 {
@@ -135,6 +299,18 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
         }
 
         return events;
+    }
+
+    private static void DisposeMonitor(ISCardMonitor monitor)
+    {
+        try
+        {
+            monitor.Dispose();
+        }
+        catch (PCSCException)
+        {
+            // the monitor context is already gone
+        }
     }
 
     private void TryReadAndPublish(string readerName, Action<NfcReaderEvent> publish, ref string? presentUid)

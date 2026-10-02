@@ -128,7 +128,7 @@
         </Grid>
 
         <TextBlock Grid.Row="6"
-                   Text="Kein Lese-, Schreib- oder Lösch-Button. Das Programm wartet automatisch auf das nächste Tag."
+                   Text=""
                    Foreground="#7F93A6"
                    FontSize="12"
                    TextWrapping="Wrap" />

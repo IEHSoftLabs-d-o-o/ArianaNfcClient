@@ -24,27 +24,40 @@ public sealed class NfcWatchHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await foreach (var evt in _nfcReaderService.WatchAsync(stoppingToken))
+            try
             {
-                var dispatcher = Application.Current?.Dispatcher;
-                if (dispatcher is null)
+                await foreach (var evt in _nfcReaderService.WatchAsync(stoppingToken))
                 {
-                    await _viewModel.HandleEventAsync(evt, stoppingToken);
-                    continue;
+                    var dispatcher = Application.Current?.Dispatcher;
+                    if (dispatcher is null)
+                    {
+                        await _viewModel.HandleEventAsync(evt, stoppingToken);
+                        continue;
+                    }
+
+                    await dispatcher.Invoke(() => _viewModel.HandleEventAsync(evt, stoppingToken));
                 }
 
-                await dispatcher.Invoke(() => _viewModel.HandleEventAsync(evt, stoppingToken));
+                break;
             }
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // shutdown
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "NFC watch loop failed");
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "NFC watch loop failed");
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
         }
     }
 }
