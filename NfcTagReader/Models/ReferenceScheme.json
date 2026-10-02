@@ -67,10 +67,10 @@
     },
     "Beschaffenheit": {
       "type": "object",
-      "required": ["Klarheit", "Faerbung", "Geruch", "Temperatur"],
+      "required": ["Klarheit", "Färbung", "Geruch", "Temperatur"],
       "properties": {
         "Klarheit": { "type": "string" },
-        "Faerbung": { "type": "string" },
+        "Färbung": { "type": "string" },
         "Geruch": { "type": "string" },
         "Temperatur": { "type": "number" }
       }
@@ -81,9 +81,9 @@
     },
     "Bericht": {
       "type": "object",
-      "required": ["Bestaetigen", "Probenahmegebuehr", "ProbenahmegebuehrUeberLabor", "UnterschriftDatum"],
+      "required": ["Bestätigen", "Probenahmegebuehr", "ProbenahmegebuehrUeberLabor", "UnterschriftDatum"],
       "properties": {
-        "Bestaetigen": { "type": "boolean" },
+        "Bestätigen": { "type": "boolean" },
         "Probenahmegebuehr": { "type": "boolean" },
         "ProbenahmegebuehrUeberLabor": { "type": "boolean" },
         "UnterschriftDatum": { "type": "string" }

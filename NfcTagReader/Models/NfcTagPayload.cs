@@ -100,7 +100,7 @@ public sealed class BeschaffenheitPayload
     [JsonPropertyName("Klarheit")]
     public string? Klarheit { get; set; }
 
-    [JsonPropertyName("Faerbung")]
+    [JsonPropertyName("Färbung")]
     public string? Faerbung { get; set; }
 
     [JsonPropertyName("Geruch")]
@@ -112,7 +112,7 @@ public sealed class BeschaffenheitPayload
 
 public sealed class BerichtPayload
 {
-    [JsonPropertyName("Bestaetigen")]
+    [JsonPropertyName("Bestätigen")]
     public bool? Bestaetigen { get; set; }
 
     [JsonPropertyName("Probenahmegebuehr")]

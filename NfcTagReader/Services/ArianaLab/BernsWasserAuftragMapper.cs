@@ -22,6 +22,7 @@ public static class BernsWasserAuftragMapper
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
         ("Bestaetigen", p => FormatBool(p.Bericht?.Bestaetigen)),
+        ("Bestätigen", p => FormatBool(p.Bericht?.Bestaetigen)),
         ("Probenahmegebuehr", p => FormatBool(p.Bericht?.Probenahmegebuehr)),
         ("ProbenahmegebuehrUeberLabor", p => FormatBool(p.Bericht?.ProbenahmegebuehrUeberLabor)),
         ("UnterschriftDatum", p => p.Bericht?.UnterschriftDatum)
