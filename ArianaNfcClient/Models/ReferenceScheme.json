@@ -41,7 +41,7 @@
     },
     "Gesundheitsamt": {
       "type": "object",
-      "required": ["Kurzname", "TeisKreisNummer", "Weitergabe"],
+      "required": ["Weitergabe"],
       "properties": {
         "Kurzname": { "type": "string" },
         "TeisKreisNummer": { "type": "string" },

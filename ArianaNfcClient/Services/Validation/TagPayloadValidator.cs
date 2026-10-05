@@ -62,6 +62,7 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
         }
 
         var schemeErrors = ValidateAgainstScheme(node, _scheme, "$");
+        schemeErrors.AddRange(ValidateGesundheitsamt(node));
         if (schemeErrors.Count > 0)
         {
             return new TagValidationResult(
@@ -129,6 +130,34 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
 
         return new TagValidationResult(true, Pretty(node), payload, null, null);
     }
+
+    private static List<string> ValidateGesundheitsamt(JsonNode instance)
+    {
+        var errors = new List<string>();
+        if (instance is not JsonObject root || root["Gesundheitsamt"] is not JsonObject amt)
+        {
+            return errors;
+        }
+
+        if (!string.Equals(ReadString(amt["Weitergabe"]), "Ja", StringComparison.OrdinalIgnoreCase))
+        {
+            return errors;
+        }
+
+        foreach (var name in new[] { "Kurzname", "TeisKreisNummer" })
+        {
+            if (string.IsNullOrWhiteSpace(ReadString(amt[name])))
+            {
+                errors.Add($"Feld \"{name}\" fehlt, wenn Weitergabe \"Ja\" ist.");
+                errors.Add($"$.Gesundheitsamt.{name} is required when Weitergabe is Ja.");
+            }
+        }
+
+        return errors;
+    }
+
+    private static string? ReadString(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     private static List<string> ValidateAgainstScheme(JsonNode instance, JsonNode? scheme, string path)
     {

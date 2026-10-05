@@ -53,8 +53,10 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                 return;
             }
 
+            var removedUid = presentUid;
             presentUid = null;
-            Publish(new NfcReaderEvent(NfcReaderEventKind.TagRemoved, currentReader));
+            _logger.LogInformation("Tag removed. Reader {Reader}, UID {Uid}", currentReader, removedUid);
+            Publish(new NfcReaderEvent(NfcReaderEventKind.TagRemoved, currentReader, removedUid));
         }
 
         void OnMonitorException(object? _, PCSCException args) =>
@@ -82,10 +84,12 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                 {
                     if (currentReader is not null || !announcedMissingReader)
                     {
+                        var lostReader = currentReader;
                         currentReader = null;
                         presentUid = null;
                         announcedMissingReader = true;
                         ReleaseMonitor();
+                        _logger.LogWarning("NFC reader unavailable. Reader {Reader}", lostReader);
                         Publish(new NfcReaderEvent(
                             NfcReaderEventKind.ReaderLost,
                             ErrorMessage: "Kein NFC-Leser gefunden.",
@@ -104,6 +108,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                     else
                     {
                         currentReader = readerName;
+                        _logger.LogInformation("NFC reader available. Reader {Reader}", readerName);
                         Publish(new NfcReaderEvent(NfcReaderEventKind.ReaderAvailable, readerName));
                         TryReadAndPublish(readerName, Publish, ref presentUid);
                     }
@@ -325,6 +330,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             }
 
             presentUid = result.Uid;
+            _logger.LogInformation("Tag arrived. Reader {Reader}, UID {Uid}", readerName, result.Uid);
             publish(new NfcReaderEvent(NfcReaderEventKind.TagPresent, readerName, result.Uid));
 
             if (result.Succeeded && !string.IsNullOrWhiteSpace(result.Payload))
@@ -337,6 +343,12 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             }
             else
             {
+                _logger.LogWarning(
+                    "Tag read failed. Reader {Reader}, UID {Uid}. {Message}. {Details}",
+                    readerName,
+                    result.Uid,
+                    result.ErrorMessage,
+                    result.TechnicalDetails);
                 publish(new NfcReaderEvent(
                     NfcReaderEventKind.TagReadFailed,
                     readerName,
@@ -350,13 +362,15 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             _logger.LogDebug(ex, "No NFC tag present on {Reader}", readerName);
             if (presentUid is not null)
             {
+                var removedUid = presentUid;
                 presentUid = null;
-                publish(new NfcReaderEvent(NfcReaderEventKind.TagRemoved, readerName));
+                _logger.LogInformation("Tag removed. Reader {Reader}, UID {Uid}", readerName, removedUid);
+                publish(new NfcReaderEvent(NfcReaderEventKind.TagRemoved, readerName, removedUid));
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "NFC read failed on {Reader}", readerName);
+            _logger.LogWarning(ex, "Tag read failed. Reader {Reader}", readerName);
             publish(new NfcReaderEvent(
                 NfcReaderEventKind.TagReadFailed,
                 readerName,
@@ -388,7 +402,6 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
         using var reader = context.ConnectReader(readerName, SCardShareMode.Shared, SCardProtocol.Any);
 
         var uid = GetUid(reader);
-        _logger.LogInformation("Tag UID {Uid} on {Reader}", uid, readerName);
 
         if (TryReadType4Ndef(reader, out var type4, out var type4Error) && type4 is not null)
         {

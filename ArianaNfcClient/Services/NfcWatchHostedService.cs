@@ -24,40 +24,48 @@ public sealed class NfcWatchHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        _logger.LogInformation("NFC watch started");
+        try
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await foreach (var evt in _nfcReaderService.WatchAsync(stoppingToken))
-                {
-                    var dispatcher = Application.Current?.Dispatcher;
-                    if (dispatcher is null)
-                    {
-                        await _viewModel.HandleEventAsync(evt, stoppingToken);
-                        continue;
-                    }
-
-                    await dispatcher.Invoke(() => _viewModel.HandleEventAsync(evt, stoppingToken));
-                }
-
-                break;
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "NFC watch loop failed");
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                    await foreach (var evt in _nfcReaderService.WatchAsync(stoppingToken))
+                    {
+                        var dispatcher = Application.Current?.Dispatcher;
+                        if (dispatcher is null)
+                        {
+                            await _viewModel.HandleEventAsync(evt, stoppingToken);
+                            continue;
+                        }
+
+                        await dispatcher.Invoke(() => _viewModel.HandleEventAsync(evt, stoppingToken));
+                    }
+
+                    break;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "NFC watch loop failed");
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
             }
+        }
+        finally
+        {
+            _logger.LogInformation("NFC watch stopped");
         }
     }
 }

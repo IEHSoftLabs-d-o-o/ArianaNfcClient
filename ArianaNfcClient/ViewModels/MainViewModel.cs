@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ArianaNfcClient.Models;
 using ArianaNfcClient.Services.ArianaLab;
@@ -10,16 +11,19 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ITagPayloadValidator _validator;
     private readonly IArianaLabClient _arianaLabClient;
+    private readonly ILogger<MainViewModel> _logger;
     private string? _processedUid;
     private bool _waitingForRemoval;
 
     public MainViewModel(
         ITagPayloadValidator validator,
         IArianaLabClient arianaLabClient,
-        IOptions<ArianaLabOptions> arianaLabOptions)
+        IOptions<ArianaLabOptions> arianaLabOptions,
+        ILogger<MainViewModel> logger)
     {
         _validator = validator;
         _arianaLabClient = arianaLabClient;
+        _logger = logger;
         var options = arianaLabOptions.Value;
         BaseUrl = string.IsNullOrWhiteSpace(options.BaseUrl) ? "–" : options.BaseUrl;
         Username = string.IsNullOrWhiteSpace(options.Username) ? "–" : options.Username;
@@ -103,6 +107,11 @@ public partial class MainViewModel : ObservableObject
 
                 _processedUid = evt.Uid;
                 _waitingForRemoval = true;
+                _logger.LogWarning(
+                    "Tag read failed. UID {Uid}. {Message}. {Details}",
+                    evt.Uid,
+                    evt.ErrorMessage,
+                    evt.TechnicalDetails);
                 SetStatus(
                     AppStatusKind.Error,
                     "Tag abgelehnt – bitte entfernen",
@@ -125,13 +134,20 @@ public partial class MainViewModel : ObservableObject
         }
 
         _processedUid = evt.Uid;
+        var scannedJson = evt.Payload ?? string.Empty;
+        _logger.LogInformation("Scanned JSON. UID {Uid}:{NewLine}{Json}", evt.Uid, Environment.NewLine, scannedJson);
         SetStatus(AppStatusKind.Validating, "JSON wird geprüft…", "Das Tag-JSON wird gegen das Auftragsschema geprüft.");
 
         var validation = _validator.Validate(evt.Payload);
-        PayloadPreview = validation.JsonText ?? evt.Payload ?? string.Empty;
+        PayloadPreview = validation.JsonText ?? scannedJson;
         if (!validation.IsValid || validation.Payload is null)
         {
             _waitingForRemoval = true;
+            _logger.LogWarning(
+                "Tag JSON rejected. UID {Uid}. {Reason}. {Details}",
+                evt.Uid,
+                validation.Reason,
+                validation.TechnicalDetails);
             SetStatus(
                 AppStatusKind.Error,
                 "Tag abgelehnt – bitte entfernen",
@@ -140,21 +156,46 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        var protocolId = validation.Payload.Protokoll?.Id;
         SetStatus(AppStatusKind.Creating, "Auftrag wird angelegt…", "Der Auftrag wird an ArianaLab übertragen.");
         var result = await _arianaLabClient.CreateAuftragAsync(
             validation.Payload,
-            validation.JsonText ?? evt.Payload ?? string.Empty,
+            validation.JsonText ?? scannedJson,
             cancellationToken);
 
         _waitingForRemoval = true;
         if (result.AlreadyExists)
         {
+            _logger.LogWarning(
+                "Auftrag already exists. Id {AuftragId}. UID {Uid}. Protocol {ProtocolId}. {Message}",
+                result.AuftragNummer,
+                evt.Uid,
+                protocolId,
+                result.Message);
             SetStatus(
                 AppStatusKind.AlreadyExists,
                 "Auftrag bereits vorhanden – bitte Tag entfernen",
                 result.Message,
                 result.TechnicalDetails);
             return;
+        }
+
+        if (result.Succeeded)
+        {
+            _logger.LogInformation(
+                "Auftrag created. Id {AuftragId}. UID {Uid}. Protocol {ProtocolId}",
+                result.AuftragNummer,
+                evt.Uid,
+                protocolId);
+        }
+        else
+        {
+            _logger.LogError(
+                "Auftrag creation failed. UID {Uid}. Protocol {ProtocolId}. {Message}. {Details}",
+                evt.Uid,
+                protocolId,
+                result.Message,
+                result.TechnicalDetails);
         }
 
         SetStatus(

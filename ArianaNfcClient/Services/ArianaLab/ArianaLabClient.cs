@@ -51,6 +51,7 @@ public sealed class ArianaLabClient : IArianaLabClient
     {
         if (string.IsNullOrWhiteSpace(_options.Username) || string.IsNullOrWhiteSpace(_options.Password))
         {
+            _logger.LogError("Auftrag creation failed. ArianaLab credentials are not configured");
             return new AuftragCreateResult(
                 false,
                 "ArianaLab-Zugangsdaten fehlen.",
@@ -62,6 +63,7 @@ public sealed class ArianaLabClient : IArianaLabClient
             var protocolId = payload.Protokoll?.Id?.Trim();
             if (string.IsNullOrWhiteSpace(protocolId))
             {
+                _logger.LogError("Auftrag creation failed. Tag has no protocol id");
                 return new AuftragCreateResult(
                     false,
                     "Das Tag enthält keine Protokoll-Id.",
@@ -82,15 +84,24 @@ public sealed class ArianaLabClient : IArianaLabClient
 
             using var created = await PostJsonAsync(createPath, body, cancellationToken);
             var createdText = await created.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogInformation("POST {Path} -> {Status}", createPath, (int)created.StatusCode);
-
             if (!created.IsSuccessStatusCode)
             {
+                _logger.LogError(
+                    "Auftrag creation failed. HTTP {Status} POST {Path}. {Body}",
+                    (int)created.StatusCode,
+                    createPath,
+                    Trim(createdText));
                 return Fail(created.StatusCode, createPath, createdText, "ArianaLab hat den Auftrag abgelehnt.");
             }
 
             var createdNode = ParseObject(createdText);
             var auftragId = ReadId(createdNode);
+            _logger.LogInformation(
+                "Auftrag created. Id {AuftragId}. Protocol {ProtocolId}. HTTP {Status} POST {Path}",
+                string.IsNullOrWhiteSpace(auftragId) ? "(none)" : auftragId,
+                protocolId,
+                (int)created.StatusCode,
+                createPath);
             var message = string.IsNullOrWhiteSpace(auftragId)
                 ? "Auftrag wurde in ArianaLab angelegt."
                 : $"Auftrag {auftragId} wurde in ArianaLab angelegt.";
@@ -108,12 +119,12 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "ArianaLab create failed");
+            _logger.LogError(ex, "Auftrag creation failed. ArianaLab is unreachable");
             return new AuftragCreateResult(false, "ArianaLab ist nicht erreichbar.", ex.Message, HttpStatus: 0);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ArianaLab create failed");
+            _logger.LogError(ex, "Auftrag creation failed");
             return new AuftragCreateResult(false, "ArianaLab ist nicht erreichbar.", ex.Message);
         }
     }
@@ -151,6 +162,11 @@ public sealed class ArianaLabClient : IArianaLabClient
 
         if (!response.IsSuccessStatusCode)
         {
+            _logger.LogError(
+                "Auftrag creation failed. Existing-order lookup returned HTTP {Status} from GET {Path}. {Body}",
+                (int)response.StatusCode,
+                createPath,
+                Trim(text));
             return new AuftragCreateResult(
                 false,
                 "Bestehende Aufträge konnten nicht geprüft werden.",
@@ -161,6 +177,9 @@ public sealed class ArianaLabClient : IArianaLabClient
         var list = ParseObject(text);
         if (list is null)
         {
+            _logger.LogError(
+                "Auftrag creation failed. Existing-order lookup returned unreadable JSON from GET {Path}",
+                createPath);
             return new AuftragCreateResult(
                 false,
                 "Bestehende Aufträge konnten nicht geprüft werden.",
@@ -180,6 +199,10 @@ public sealed class ArianaLabClient : IArianaLabClient
             }
 
             var id = ReadId(auftrag);
+            _logger.LogWarning(
+                "Auftrag already exists. Id {AuftragId}. Protocol {ProtocolId}",
+                string.IsNullOrWhiteSpace(id) ? "(none)" : id,
+                protocolId);
             return new AuftragCreateResult(
                 false,
                 "Für dieses Tag existiert bereits ein Auftrag.",

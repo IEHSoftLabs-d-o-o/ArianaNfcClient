@@ -16,12 +16,16 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
+    <PackageReference Include="NLog.Extensions.Hosting" Version="6.2.1" />
     <PackageReference Include="PCSC" Version="7.0.1" />
     <PackageReference Include="PCSC.Iso7816" Version="7.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="nlog.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="appsettings.Local.json" Condition="Exists('appsettings.Local.json')">
