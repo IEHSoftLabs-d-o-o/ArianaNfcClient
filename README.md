@@ -1,2 +1,2 @@
 # ArianaNfcClient
-Program for reading RFID Tags and generating orders for ArianaLab
+Program for reading NFC Tags and generating orders for ArianaLab
