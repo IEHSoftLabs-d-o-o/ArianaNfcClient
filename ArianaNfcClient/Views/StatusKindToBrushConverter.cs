@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 
-namespace NfcTagReader.Views;
+namespace ArianaNfcClient.Views;
 
 public sealed class StatusKindToBrushConverter : IValueConverter
 {

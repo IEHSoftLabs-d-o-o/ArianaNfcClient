@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace NfcTagReader.Services.Validation;
+namespace ArianaNfcClient.Services.Validation;
 
 internal static class JsonUnicodeEscapes
 {

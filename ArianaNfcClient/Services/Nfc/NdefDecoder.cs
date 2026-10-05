@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace NfcTagReader.Services.Nfc;
+namespace ArianaNfcClient.Services.Nfc;
 
 public static class NdefDecoder
 {

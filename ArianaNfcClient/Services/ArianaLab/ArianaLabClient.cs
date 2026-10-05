@@ -6,10 +6,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NfcTagReader.Models;
-using NfcTagReader.Services.Validation;
+using ArianaNfcClient.Models;
+using ArianaNfcClient.Services.Validation;
 
-namespace NfcTagReader.Services.ArianaLab;
+namespace ArianaNfcClient.Services.ArianaLab;
 
 public sealed class ArianaLabClient : IArianaLabClient
 {

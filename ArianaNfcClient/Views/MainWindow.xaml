@@ -1,11 +1,11 @@
-<Window x:Class="NfcTagReader.Views.MainWindow"
+<Window x:Class="ArianaNfcClient.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:views="clr-namespace:NfcTagReader.Views"
+        xmlns:views="clr-namespace:ArianaNfcClient.Views"
         mc:Ignorable="d"
-        Title="NFC Tag Reader – ArianaLab"
+        Title="Ariana NFC Client"
         Height="640"
         Width="880"
         MinHeight="520"
@@ -33,13 +33,25 @@
 
         <DockPanel>
             <StackPanel>
-                <TextBlock Text="NFC Tag Reader"
+                <TextBlock Text="Ariana NFC Client"
                            FontSize="26"
                            FontWeight="SemiBold" />
                 <TextBlock Text="Auftragserzeugung für ArianaLab"
                            Margin="0,4,0,0"
                            Foreground="#9BB0C3"
                            FontSize="14" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="#9BB0C3"
+                           FontSize="13">
+                    <Run Text="ArianaLab: " />
+                    <Run Text="{Binding BaseUrl, Mode=OneWay}" Foreground="#E8EEF4" />
+                </TextBlock>
+                <TextBlock Margin="0,2,0,0"
+                           Foreground="#9BB0C3"
+                           FontSize="13">
+                    <Run Text="Benutzer: " />
+                    <Run Text="{Binding Username, Mode=OneWay}" Foreground="#E8EEF4" />
+                </TextBlock>
             </StackPanel>
             <StackPanel DockPanel.Dock="Right"
                         HorizontalAlignment="Right"

@@ -2,12 +2,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 using PCSC;
 using PCSC.Exceptions;
 using PCSC.Monitoring;
 
-namespace NfcTagReader.Services.Nfc;
+namespace ArianaNfcClient.Services.Nfc;
 
 public sealed class Acr1552NfcReaderService : INfcReaderService
 {

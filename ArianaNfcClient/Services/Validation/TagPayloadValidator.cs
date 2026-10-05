@@ -2,9 +2,9 @@ using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 
-namespace NfcTagReader.Services.Validation;
+namespace ArianaNfcClient.Services.Validation;
 
 public sealed class TagPayloadValidator : ITagPayloadValidator
 {

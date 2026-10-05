@@ -1,6 +1,6 @@
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 
-namespace NfcTagReader.Services.Validation;
+namespace ArianaNfcClient.Services.Validation;
 
 public interface ITagPayloadValidator
 {

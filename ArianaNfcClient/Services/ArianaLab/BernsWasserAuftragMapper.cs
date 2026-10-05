@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 
-namespace NfcTagReader.Services.ArianaLab;
+namespace ArianaNfcClient.Services.ArianaLab;
 
 public static class BernsWasserAuftragMapper
 {
@@ -13,11 +13,6 @@ public static class BernsWasserAuftragMapper
         ("Probenahmeort Wasserprobe", p => p.Entnahme?.Stelle),
         ("Wassertyp", p => p.Entnahme?.Wassertyp),
         ("Aufbereitung", p => p.Entnahme?.Aufbereitung),
-        ("Klarheit", p => p.Beschaffenheit?.Klarheit),
-        ("Faerbung", p => p.Beschaffenheit?.Faerbung),
-        ("Färbung", p => p.Beschaffenheit?.Faerbung),
-        ("Geruch", p => p.Beschaffenheit?.Geruch),
-        ("Temperatur", p => p.Beschaffenheit?.Temperatur?.ToString(CultureInfo.InvariantCulture)),
         ("Gesundheitsamt", p => p.Gesundheitsamt?.Kurzname),
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
@@ -64,6 +59,8 @@ public static class BernsWasserAuftragMapper
             auftrag["Attribute"] = attributes;
         }
 
+        RemoveAttributes(attributes, SensoryAttributeNames);
+
         foreach (var (name, getter) in AttributeMappings)
         {
             var value = getter(payload);
@@ -83,8 +80,86 @@ public static class BernsWasserAuftragMapper
 
         FilterAnalysen(auftrag, payload.Analysen);
         EnsureAnalysenFromTag(auftrag, payload.Analysen);
+        ApplyBeschaffenheitToAnalysen(auftrag, payload.Beschaffenheit);
         return auftrag;
     }
+
+    private static readonly string[] SensoryAttributeNames = ["Klarheit", "Faerbung", "Färbung", "Geruch", "Temperatur"];
+
+    private static readonly (string[] Names, Func<BeschaffenheitPayload, string?> Value)[] BeschaffenheitAnalysen =
+    [
+        (["Klarheit"], b => b.Klarheit),
+        (["Färbung", "Faerbung"], b => b.Faerbung),
+        (["Geruch"], b => b.Geruch),
+        (["Temperatur"], b => b.Temperatur?.ToString(CultureInfo.InvariantCulture))
+    ];
+
+    private static void ApplyBeschaffenheitToAnalysen(JsonObject auftrag, BeschaffenheitPayload? beschaffenheit)
+    {
+        if (beschaffenheit is null || auftrag["Positionen"] is not JsonArray positionen)
+        {
+            return;
+        }
+
+        foreach (var positionNode in positionen)
+        {
+            if (positionNode is not JsonObject position || position["Analysen"] is not JsonArray analysen)
+            {
+                continue;
+            }
+
+            foreach (var analyseNode in analysen)
+            {
+                if (analyseNode is not JsonObject analyse)
+                {
+                    continue;
+                }
+
+                var name = ReadString(analyse["Name"]);
+                var value = name is null ? null : BeschaffenheitValueFor(name, beschaffenheit);
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                var analyseAttributes = analyse["Attribute"] as JsonArray ?? [];
+                if (analyse["Attribute"] is not JsonArray)
+                {
+                    analyse["Attribute"] = analyseAttributes;
+                }
+
+                UpsertAttribute(analyseAttributes, "$vorbelegung", value);
+            }
+        }
+    }
+
+    private static string? BeschaffenheitValueFor(string analyseName, BeschaffenheitPayload beschaffenheit)
+    {
+        foreach (var (names, getter) in BeschaffenheitAnalysen)
+        {
+            if (names.Any(name => string.Equals(name, analyseName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return getter(beschaffenheit);
+            }
+        }
+
+        return null;
+    }
+
+    private static void RemoveAttributes(JsonArray attributes, IEnumerable<string> names)
+    {
+        for (var i = attributes.Count - 1; i >= 0; i--)
+        {
+            var name = attributes[i] is JsonObject existing ? ReadString(existing["Name"]) : null;
+            if (name is not null && names.Any(candidate => string.Equals(candidate, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                attributes.RemoveAt(i);
+            }
+        }
+    }
+
+    private static string? ReadString(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     private static void EnsureAnalysenFromTag(JsonObject auftrag, List<string>? analysen)
     {

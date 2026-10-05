@@ -1,9 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using NfcTagReader.Models;
-using NfcTagReader.Services.ArianaLab;
-using NfcTagReader.Services.Validation;
+using Microsoft.Extensions.Options;
+using ArianaNfcClient.Models;
+using ArianaNfcClient.Services.ArianaLab;
+using ArianaNfcClient.Services.Validation;
 
-namespace NfcTagReader.ViewModels;
+namespace ArianaNfcClient.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
@@ -12,14 +13,24 @@ public partial class MainViewModel : ObservableObject
     private string? _processedUid;
     private bool _waitingForRemoval;
 
-    public MainViewModel(ITagPayloadValidator validator, IArianaLabClient arianaLabClient)
+    public MainViewModel(
+        ITagPayloadValidator validator,
+        IArianaLabClient arianaLabClient,
+        IOptions<ArianaLabOptions> arianaLabOptions)
     {
         _validator = validator;
         _arianaLabClient = arianaLabClient;
+        var options = arianaLabOptions.Value;
+        BaseUrl = string.IsNullOrWhiteSpace(options.BaseUrl) ? "–" : options.BaseUrl;
+        Username = string.IsNullOrWhiteSpace(options.Username) ? "–" : options.Username;
         StatusKind = AppStatusKind.Waiting;
         Status = "Warten auf NFC-Tag…";
         ResultMessage = "Legen Sie ein NFC-Tag auf den Leser.";
     }
+
+    public string BaseUrl { get; }
+
+    public string Username { get; }
 
     [ObservableProperty]
     private string _status = string.Empty;

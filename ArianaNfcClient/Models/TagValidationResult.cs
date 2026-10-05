@@ -1,4 +1,4 @@
-namespace NfcTagReader.Models;
+namespace ArianaNfcClient.Models;
 
 public sealed record TagValidationResult(
     bool IsValid,

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace NfcTagReader.Models;
+namespace ArianaNfcClient.Models;
 
 public sealed class NfcTagPayload
 {

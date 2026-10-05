@@ -1,7 +1,7 @@
 using System.Windows;
-using NfcTagReader.ViewModels;
+using ArianaNfcClient.ViewModels;
 
-namespace NfcTagReader.Views;
+namespace ArianaNfcClient.Views;
 
 public partial class MainWindow : Window
 {

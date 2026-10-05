@@ -7,8 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationTitle>NFC Tag Reader – ArianaLab</ApplicationTitle>
-    <RootNamespace>NfcTagReader</RootNamespace>
-    <AssemblyName>NfcTagReader</AssemblyName>
+    <RootNamespace>ArianaNfcClient</RootNamespace>
+    <AssemblyName>ArianaNfcClient</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

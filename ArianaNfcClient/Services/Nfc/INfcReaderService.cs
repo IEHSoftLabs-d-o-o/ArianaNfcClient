@@ -1,6 +1,6 @@
-using NfcTagReader.Models;
+using ArianaNfcClient.Models;
 
-namespace NfcTagReader.Services.Nfc;
+namespace ArianaNfcClient.Services.Nfc;
 
 public interface INfcReaderService
 {

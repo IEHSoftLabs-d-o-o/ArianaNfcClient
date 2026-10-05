@@ -1,10 +1,10 @@
 using System.Windows;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NfcTagReader.Services.Nfc;
-using NfcTagReader.ViewModels;
+using ArianaNfcClient.Services.Nfc;
+using ArianaNfcClient.ViewModels;
 
-namespace NfcTagReader.Services;
+namespace ArianaNfcClient.Services;
 
 public sealed class NfcWatchHostedService : BackgroundService
 {

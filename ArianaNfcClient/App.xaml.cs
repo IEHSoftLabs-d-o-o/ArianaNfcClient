@@ -1,16 +1,16 @@
-﻿using System.Windows;
+using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NfcTagReader.Models;
-using NfcTagReader.Services;
-using NfcTagReader.Services.ArianaLab;
-using NfcTagReader.Services.Nfc;
-using NfcTagReader.Services.Validation;
-using NfcTagReader.ViewModels;
-using NfcTagReader.Views;
+using ArianaNfcClient.Models;
+using ArianaNfcClient.Services;
+using ArianaNfcClient.Services.ArianaLab;
+using ArianaNfcClient.Services.Nfc;
+using ArianaNfcClient.Services.Validation;
+using ArianaNfcClient.ViewModels;
+using ArianaNfcClient.Views;
 
-namespace NfcTagReader;
+namespace ArianaNfcClient;
 
 public partial class App : Application
 {
