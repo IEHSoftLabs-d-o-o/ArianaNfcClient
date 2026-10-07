@@ -1,0 +1,77 @@
+<Window x:Class="ArianaNfcClient.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Einstellungen"
+        Width="440"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#F8F9FA"
+        FontFamily="Segoe UI"
+        FontSize="13">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="ArianaLab-Adresse"
+                       Foreground="#495057" />
+            <TextBox x:Name="BaseUrlBox"
+                     Margin="0,6,0,0"
+                     Padding="8,6"
+                     Background="#FFFFFF"
+                     Foreground="#212529"
+                     BorderBrush="#DEE2E6" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+            <TextBlock Text="Benutzer"
+                       Foreground="#495057" />
+            <TextBox x:Name="UsernameBox"
+                     Margin="0,6,0,0"
+                     Padding="8,6"
+                     Background="#FFFFFF"
+                     Foreground="#212529"
+                     BorderBrush="#DEE2E6" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock Text="Passwort"
+                       Foreground="#495057" />
+            <PasswordBox x:Name="PasswordBox"
+                         Margin="0,6,0,0"
+                         Padding="8,6"
+                         Background="#FFFFFF"
+                         Foreground="#212529"
+                         BorderBrush="#DEE2E6" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="3"
+                    Margin="0,20,0,0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Abbrechen"
+                    Width="110"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Background="#FFFFFF"
+                    Foreground="#212529"
+                    BorderBrush="#DEE2E6"
+                    IsCancel="True"
+                    Click="CancelButton_OnClick" />
+            <Button Content="Speichern"
+                    Width="110"
+                    Height="32"
+                    Background="#2A3E91"
+                    Foreground="#FFFFFF"
+                    BorderBrush="#2A3E91"
+                    IsDefault="True"
+                    Click="SaveButton_OnClick" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -9,18 +9,12 @@ public static class BernsWasserAuftragMapper
 {
     private static readonly (string AttributeName, Func<NfcTagPayload, string?> Value)[] AttributeMappings =
     [
-        (".Probenahmeort Wasserprobe", p => p.Entnahme?.Stelle),
-        ("Probenahmeort Wasserprobe", p => p.Entnahme?.Stelle),
         ("Wassertyp", p => p.Entnahme?.Wassertyp),
         ("Aufbereitung", p => p.Entnahme?.Aufbereitung),
         ("Gesundheitsamt", p => p.Gesundheitsamt?.Kurzname),
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
-        ("Bestaetigen", p => FormatBool(p.Bericht?.Bestaetigen)),
-        ("Bestätigen", p => FormatBool(p.Bericht?.Bestaetigen)),
-        ("Probenahmegebuehr", p => FormatBool(p.Bericht?.Probenahmegebuehr)),
-        ("ProbenahmegebuehrUeberLabor", p => FormatBool(p.Bericht?.ProbenahmegebuehrUeberLabor)),
-        ("UnterschriftDatum", p => p.Bericht?.UnterschriftDatum)
+        ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt))
     ];
 
     public static JsonObject Map(
@@ -60,6 +54,16 @@ public static class BernsWasserAuftragMapper
         }
 
         RemoveAttributes(attributes, SensoryAttributeNames);
+        SetProbenahmeort(attributes, payload.Entnahme?.Stelle);
+        SetNamedAttribute(attributes, "Bestätigen", FormatBool(payload.Bericht?.Bestaetigen), "Bestätigen", "Bestättigen", "Bestaetigen");
+        SetNamedAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebühr", "Probenahmegebuehr");
+        SetNamedAttribute(
+            attributes,
+            "Probenahmegebühr über Labor",
+            FormatBool(payload.Bericht?.ProbenahmegebuehrUeberLabor),
+            "Probenahmegebühr über Labor",
+            "ProbenahmegebuehrUeberLabor");
+        SetNamedAttribute(attributes, "Datum der Unterschrift", FormatGermanDate(payload.Bericht?.UnterschriftDatum), "Datum der Unterschrift", "UnterschriftDatum");
 
         foreach (var (name, getter) in AttributeMappings)
         {
@@ -228,6 +232,48 @@ public static class BernsWasserAuftragMapper
             name.Contains(w, StringComparison.OrdinalIgnoreCase) ||
             w.Contains(name, StringComparison.OrdinalIgnoreCase));
 
+    private static void SetProbenahmeort(JsonArray attributes, string? stelle) =>
+        SetNamedAttribute(attributes, "Probenahmeort Wasserprobe", stelle, "Probenahmeort Wasserprobe", ".Probenahmeort Wasserprobe");
+
+    private static void SetNamedAttribute(JsonArray attributes, string canonicalName, string? value, params string[] names)
+    {
+        JsonObject? kept = null;
+        for (var i = attributes.Count - 1; i >= 0; i--)
+        {
+            if (attributes[i] is not JsonObject existing || !MatchesName(ReadString(existing["Name"]), names))
+            {
+                continue;
+            }
+
+            if (kept is null)
+            {
+                kept = existing;
+                continue;
+            }
+
+            attributes.RemoveAt(i);
+        }
+
+        if (kept is null)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                UpsertAttribute(attributes, canonicalName, value);
+            }
+
+            return;
+        }
+
+        kept["Name"] = canonicalName;
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            kept["Wert"] = value;
+        }
+    }
+
+    private static bool MatchesName(string? name, IEnumerable<string> names) =>
+        name is not null && names.Any(candidate => string.Equals(candidate, name, StringComparison.OrdinalIgnoreCase));
+
     private static void UpsertAttribute(JsonArray attributes, string name, string value)
     {
         foreach (var node in attributes)
@@ -275,4 +321,30 @@ public static class BernsWasserAuftragMapper
 
     private static string? FormatBool(bool? value) =>
         value is null ? null : value.Value ? "Ja" : "Nein";
+
+    private static string? FormatGermanDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed) &&
+            !DateTimeOffset.TryParse(value, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.None, out parsed))
+        {
+            return null;
+        }
+
+        return parsed.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private static string? FormatSampleTime(string? zeitpunkt)
+    {
+        if (!DateTimeOffset.TryParse(zeitpunkt, out var entnahme))
+        {
+            return null;
+        }
+
+        return entnahme.ToString("HH:mm", CultureInfo.InvariantCulture);
+    }
 }

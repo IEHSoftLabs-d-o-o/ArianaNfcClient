@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ArianaNfcClient.Models;
 using ArianaNfcClient.Services.ArianaLab;
+using ArianaNfcClient.Services.Connection;
 using ArianaNfcClient.Services.Validation;
 
 namespace ArianaNfcClient.ViewModels;
@@ -12,6 +13,8 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ITagPayloadValidator _validator;
     private readonly IArianaLabClient _arianaLabClient;
+    private readonly IConnectionSettingsStore _connectionSettings;
+    private readonly ArianaLabOptions _options;
     private static readonly TimeSpan MinimumResultDisplay = TimeSpan.FromSeconds(2);
 
     private readonly ILogger<MainViewModel> _logger;
@@ -23,23 +26,26 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         ITagPayloadValidator validator,
         IArianaLabClient arianaLabClient,
+        IConnectionSettingsStore connectionSettings,
         IOptions<ArianaLabOptions> arianaLabOptions,
         ILogger<MainViewModel> logger)
     {
         _validator = validator;
         _arianaLabClient = arianaLabClient;
+        _connectionSettings = connectionSettings;
+        _options = arianaLabOptions.Value;
         _logger = logger;
-        var options = arianaLabOptions.Value;
-        BaseUrl = string.IsNullOrWhiteSpace(options.BaseUrl) ? "–" : options.BaseUrl;
-        Username = string.IsNullOrWhiteSpace(options.Username) ? "–" : options.Username;
+        ShowConnection();
         StatusKind = AppStatusKind.Waiting;
         Status = "Warten auf NFC-Tag…";
         ResultMessage = "Legen Sie einen NFC-Tag auf den Leser.";
     }
 
-    public string BaseUrl { get; }
+    [ObservableProperty]
+    private string _baseUrl = "–";
 
-    public string Username { get; }
+    [ObservableProperty]
+    private string _username = "–";
 
     [ObservableProperty]
     private string _status = string.Empty;
@@ -61,6 +67,26 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _lastUid = "–";
+
+    public ConnectionSettings GetConnection() =>
+        new(_options.BaseUrl, _options.Username, _options.Password);
+
+    public void SaveConnection(string baseUrl, string username, string password)
+    {
+        var settings = new ConnectionSettings(baseUrl.Trim(), username.Trim(), password);
+        _connectionSettings.Save(settings);
+        _options.BaseUrl = settings.BaseUrl;
+        _options.Username = settings.Username;
+        _options.Password = settings.Password;
+        _arianaLabClient.ApplyConnection();
+        ShowConnection();
+    }
+
+    private void ShowConnection()
+    {
+        BaseUrl = string.IsNullOrWhiteSpace(_options.BaseUrl) ? "–" : _options.BaseUrl;
+        Username = string.IsNullOrWhiteSpace(_options.Username) ? "–" : _options.Username;
+    }
 
     public async Task HandleEventAsync(NfcReaderEvent evt, CancellationToken cancellationToken)
     {

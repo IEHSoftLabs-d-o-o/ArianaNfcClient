@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
@@ -12,6 +13,7 @@ using NLog.Extensions.Hosting;
 using ArianaNfcClient.Models;
 using ArianaNfcClient.Services;
 using ArianaNfcClient.Services.ArianaLab;
+using ArianaNfcClient.Services.Connection;
 using ArianaNfcClient.Services.Nfc;
 using ArianaNfcClient.Services.Validation;
 using ArianaNfcClient.ViewModels;
@@ -38,6 +40,7 @@ public partial class App : Application
         try
         {
             bootstrap.Info("Application starting. Version {0}", version);
+            ApplyInstalledIcon();
 
             _host = Host.CreateDefaultBuilder()
                 .UseContentRoot(AppContext.BaseDirectory)
@@ -45,12 +48,12 @@ public partial class App : Application
                 {
                     config.SetBasePath(AppContext.BaseDirectory);
                     config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                    config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
                 })
                 .UseNLog()
                 .ConfigureServices((context, services) =>
                 {
                     services.Configure<ArianaLabOptions>(context.Configuration.GetSection(ArianaLabOptions.SectionName));
+                    services.AddSingleton<IConnectionSettingsStore, ConnectionSettingsStore>();
                     services.AddSingleton<INfcReaderService, Acr1552NfcReaderService>();
                     services.AddSingleton<ITagPayloadValidator, TagPayloadValidator>();
                     services.AddHttpClient<IArianaLabClient, ArianaLabClient>(client =>
@@ -62,6 +65,8 @@ public partial class App : Application
                     services.AddHostedService<NfcWatchHostedService>();
                 })
                 .Build();
+
+            ApplyLocalConnection(_host.Services);
 
             await _host.StartAsync();
 
@@ -107,6 +112,65 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    private const string ProductName = "Ariana NFC Client";
+
+    private static void ApplyInstalledIcon()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("ClickOnce_IsNetworkDeployed"),
+                "true",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "nfc.ico");
+        if (!File.Exists(iconPath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var uninstall = Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Uninstall",
+                writable: true);
+            if (uninstall is null)
+            {
+                return;
+            }
+
+            foreach (var name in uninstall.GetSubKeyNames())
+            {
+                using var appKey = uninstall.OpenSubKey(name, writable: true);
+                if (appKey?.GetValue("DisplayName") as string != ProductName)
+                {
+                    continue;
+                }
+
+                appKey.SetValue("DisplayIcon", iconPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogManager.GetCurrentClassLogger().Warn(ex, "Programs and Features icon could not be set");
+        }
+    }
+
+    private static void ApplyLocalConnection(IServiceProvider services)
+    {
+        if (!File.Exists(ConnectionSettingsStore.FilePath))
+        {
+            return;
+        }
+
+        var options = services.GetRequiredService<IOptions<ArianaLabOptions>>().Value;
+        var connection = services.GetRequiredService<IConnectionSettingsStore>().Load();
+        options.BaseUrl = connection.BaseUrl;
+        options.Username = connection.Username;
+        options.Password = connection.Password;
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

@@ -28,20 +28,32 @@ public sealed class ArianaLabClient : IArianaLabClient
         _options = options.Value;
         _logger = logger;
 
-        if (!string.IsNullOrWhiteSpace(_options.BaseUrl))
-        {
-            _httpClient.BaseAddress = new Uri(EnsureTrailingSlash(_options.BaseUrl));
-        }
-
         _httpClient.DefaultRequestHeaders.Accept.Clear();
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        ApplyConnection();
+    }
 
-        if (!string.IsNullOrWhiteSpace(_options.Username))
+    public void ApplyConnection()
+    {
+        if (string.IsNullOrWhiteSpace(_options.BaseUrl) ||
+            !Uri.TryCreate(EnsureTrailingSlash(_options.BaseUrl.Trim()), UriKind.Absolute, out var baseAddress))
         {
-            var raw = $"{_options.Username}:{_options.Password ?? string.Empty}";
-            var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
+            _httpClient.BaseAddress = null;
         }
+        else
+        {
+            _httpClient.BaseAddress = baseAddress;
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.Username))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+            return;
+        }
+
+        var raw = $"{_options.Username}:{_options.Password ?? string.Empty}";
+        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
     }
 
     public async Task<AuftragCreateResult> CreateAuftragAsync(
@@ -55,7 +67,7 @@ public sealed class ArianaLabClient : IArianaLabClient
             return new AuftragCreateResult(
                 false,
                 "ArianaLab-Zugangsdaten fehlen.",
-                "Set ArianaLab:Username and ArianaLab:Password in appsettings.json or appsettings.Local.json.");
+                "Legen Sie Benutzer und Passwort über Einstellungen fest.");
         }
 
         try

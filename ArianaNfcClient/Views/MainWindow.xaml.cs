@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,10 +20,29 @@ public partial class MainWindow : Window
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        if (version is not null)
+        {
+            Title = $"{Title} {version}";
+        }
+
         _viewModel = viewModel;
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += (_, _) => viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+
+    private void SettingsButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var current = _viewModel.GetConnection();
+        var dialog = new SettingsWindow(current.BaseUrl, current.Username, current.Password)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            _viewModel.SaveConnection(dialog.BaseUrl, dialog.Username, dialog.Password);
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

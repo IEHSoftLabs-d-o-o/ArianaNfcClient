@@ -1,0 +1,31 @@
+<Project>
+  <Target Name="IncludeClickOnceConfigFiles" BeforeTargets="_DeploymentComputeClickOnceManifestInfo" Condition="'$(PublishProtocol)' == 'ClickOnce'">
+    <ItemGroup>
+      <_ClickOnceFiles Include="$(MSBuildProjectDirectory)\appsettings.json">
+        <TargetPath>appsettings.json</TargetPath>
+      </_ClickOnceFiles>
+      <_ClickOnceFiles Include="$(MSBuildProjectDirectory)\nlog.config">
+        <TargetPath>nlog.config</TargetPath>
+      </_ClickOnceFiles>
+      <_ClickOnceFiles Remove="$(MSBuildProjectDirectory)\appsettings.Local.json" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    dotnet msbuild cannot run the full-framework UpdateManifest task.
+    Rewrite the deployment manifest codebase and copy it to the publish folder instead.
+    The icon stays on the application manifest. ClickOnce rejects iconFile on the deployment manifest.
+  -->
+  <Target Name="_DeploymentSignClickOnceDeployment" Condition="'$(PublishProtocol)' == 'ClickOnce' and '$(MSBuildRuntimeType)' == 'Core'">
+    <XmlPoke
+      XmlInputPath="$(OutDir)$(TargetDeployManifestFileName)"
+      Query="//*[local-name()='dependentAssembly']/@codebase"
+      Value="$(_DeploymentApplicationFolderName)\$(_DeploymentTargetApplicationManifestFileName)" />
+    <Copy
+      SourceFiles="$(OutDir)$(TargetDeployManifestFileName)"
+      DestinationFiles="$(ClickOncePublishDir)$(TargetDeployManifestFileName)"
+      SkipUnchangedFiles="false"
+      OverwriteReadOnlyFiles="true" />
+    <Delete Files="$(ClickOncePublishDir)nfc.ico" />
+  </Target>
+</Project>

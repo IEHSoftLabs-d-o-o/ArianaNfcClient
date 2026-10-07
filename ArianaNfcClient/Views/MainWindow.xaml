@@ -40,6 +40,25 @@
         </Grid.RowDefinitions>
 
         <DockPanel>
+            <Button DockPanel.Dock="Right"
+                    Width="36"
+                    Height="36"
+                    Margin="16,0,0,0"
+                    Padding="0"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    BorderBrush="#DEE2E6"
+                    BorderThickness="1"
+                    Cursor="Hand"
+                    ToolTip="Einstellungen"
+                    Click="SettingsButton_OnClick">
+                <TextBlock Text="&#xE713;"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="16"
+                           Foreground="#2A3E91"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Button>
             <StackPanel>
                 <TextBlock Text="Ariana NFC Client"
                            FontSize="26"
