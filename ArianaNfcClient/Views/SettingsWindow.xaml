@@ -26,7 +26,8 @@
                      Padding="8,6"
                      Background="#FFFFFF"
                      Foreground="#212529"
-                     BorderBrush="#DEE2E6" />
+                     BorderBrush="#DEE2E6"
+                     TextChanged="Setting_OnChanged" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,14,0,0">
@@ -37,7 +38,8 @@
                      Padding="8,6"
                      Background="#FFFFFF"
                      Foreground="#212529"
-                     BorderBrush="#DEE2E6" />
+                     BorderBrush="#DEE2E6"
+                     TextChanged="Setting_OnChanged" />
         </StackPanel>
 
         <StackPanel Grid.Row="2" Margin="0,14,0,0">
@@ -48,13 +50,22 @@
                          Padding="8,6"
                          Background="#FFFFFF"
                          Foreground="#212529"
-                         BorderBrush="#DEE2E6" />
+                         BorderBrush="#DEE2E6"
+                         PasswordChanged="Setting_OnChanged" />
         </StackPanel>
 
         <StackPanel Grid.Row="3"
                     Margin="0,20,0,0"
                     Orientation="Horizontal"
-                    HorizontalAlignment="Right">
+                    HorizontalAlignment="Center">
+            <Button Content="Logs"
+                    Width="110"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Background="#FFFFFF"
+                    Foreground="#212529"
+                    BorderBrush="#DEE2E6"
+                    Click="LogsButton_OnClick" />
             <Button Content="Abbrechen"
                     Width="110"
                     Height="32"
@@ -64,14 +75,28 @@
                     BorderBrush="#DEE2E6"
                     IsCancel="True"
                     Click="CancelButton_OnClick" />
-            <Button Content="Speichern"
+            <Button x:Name="SaveButton"
+                    Content="Speichern"
                     Width="110"
                     Height="32"
-                    Background="#2A3E91"
-                    Foreground="#FFFFFF"
-                    BorderBrush="#2A3E91"
+                    IsEnabled="False"
                     IsDefault="True"
-                    Click="SaveButton_OnClick" />
+                    Click="SaveButton_OnClick">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#2A3E91" />
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                        <Setter Property="BorderBrush" Value="#2A3E91" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#E9ECEF" />
+                                <Setter Property="Foreground" Value="#6C757D" />
+                                <Setter Property="BorderBrush" Value="#DEE2E6" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
         </StackPanel>
     </Grid>
 </Window>
