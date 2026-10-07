@@ -1,3 +1,4 @@
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,9 +12,13 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ITagPayloadValidator _validator;
     private readonly IArianaLabClient _arianaLabClient;
+    private static readonly TimeSpan MinimumResultDisplay = TimeSpan.FromSeconds(2);
+
     private readonly ILogger<MainViewModel> _logger;
     private string? _processedUid;
     private bool _waitingForRemoval;
+    private DateTime? _resultShownUtc;
+    private long _statusVersion;
 
     public MainViewModel(
         ITagPayloadValidator validator,
@@ -29,7 +34,7 @@ public partial class MainViewModel : ObservableObject
         Username = string.IsNullOrWhiteSpace(options.Username) ? "–" : options.Username;
         StatusKind = AppStatusKind.Waiting;
         Status = "Warten auf NFC-Tag…";
-        ResultMessage = "Legen Sie ein NFC-Tag auf den Leser.";
+        ResultMessage = "Legen Sie einen NFC-Tag auf den Leser.";
     }
 
     public string BaseUrl { get; }
@@ -63,9 +68,9 @@ public partial class MainViewModel : ObservableObject
         {
             case NfcReaderEventKind.ReaderAvailable:
                 ReaderName = evt.ReaderName ?? ReaderName;
-                if (!_waitingForRemoval)
+                if (!_waitingForRemoval && _resultShownUtc is null)
                 {
-                    SetStatus(AppStatusKind.Waiting, "Warten auf NFC-Tag…", "Legen Sie ein NFC-Tag auf den Leser.");
+                    SetStatus(AppStatusKind.Waiting, "Warten auf NFC-Tag…", "Legen Sie einen NFC-Tag auf den Leser.");
                 }
 
                 break;
@@ -93,9 +98,7 @@ public partial class MainViewModel : ObservableObject
                 _waitingForRemoval = false;
                 _processedUid = null;
                 LastUid = "–";
-                PayloadPreview = string.Empty;
-                SetStatus(AppStatusKind.Waiting, "Warten auf NFC-Tag…", "Legen Sie ein NFC-Tag auf den Leser.");
-                TechnicalDetails = string.Empty;
+                ScheduleReturnToWaiting(cancellationToken);
                 break;
 
             case NfcReaderEventKind.TagReadFailed:
@@ -136,7 +139,11 @@ public partial class MainViewModel : ObservableObject
         _processedUid = evt.Uid;
         var scannedJson = evt.Payload ?? string.Empty;
         _logger.LogInformation("Scanned JSON. UID {Uid}:{NewLine}{Json}", evt.Uid, Environment.NewLine, scannedJson);
-        SetStatus(AppStatusKind.Validating, "JSON wird geprüft…", "Das Tag-JSON wird gegen das Auftragsschema geprüft.");
+        SetStatus(
+            AppStatusKind.Creating,
+            "NFC-Tag gelesen. Auftrag wird angelegt...",
+            "Der Auftrag wird an ArianaLab übertragen.");
+        await Dispatcher.Yield();
 
         var validation = _validator.Validate(evt.Payload);
         PayloadPreview = validation.JsonText ?? scannedJson;
@@ -157,7 +164,6 @@ public partial class MainViewModel : ObservableObject
         }
 
         var protocolId = validation.Payload.Protokoll?.Id;
-        SetStatus(AppStatusKind.Creating, "Auftrag wird angelegt…", "Der Auftrag wird an ArianaLab übertragen.");
         var result = await _arianaLabClient.CreateAuftragAsync(
             validation.Payload,
             validation.JsonText ?? scannedJson,
@@ -210,12 +216,73 @@ public partial class MainViewModel : ObservableObject
         (!string.IsNullOrWhiteSpace(uid) &&
          string.Equals(_processedUid, uid, StringComparison.OrdinalIgnoreCase));
 
+    private void ScheduleReturnToWaiting(CancellationToken cancellationToken)
+    {
+        var version = _statusVersion;
+        var remaining = ResultDisplayRemaining();
+        if (remaining <= TimeSpan.Zero)
+        {
+            ReturnToWaiting(version);
+            return;
+        }
+
+        _ = HoldResultAsync(version, remaining, cancellationToken);
+    }
+
+    private TimeSpan ResultDisplayRemaining()
+    {
+        if (_resultShownUtc is not DateTime shownUtc || !IsResultStatus(StatusKind))
+        {
+            return TimeSpan.Zero;
+        }
+
+        var remaining = MinimumResultDisplay - (DateTime.UtcNow - shownUtc);
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    private async Task HoldResultAsync(long version, TimeSpan delay, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(delay, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            ReturnToWaiting(version);
+            return;
+        }
+
+        await dispatcher.InvokeAsync(() => ReturnToWaiting(version));
+    }
+
+    private void ReturnToWaiting(long version)
+    {
+        if (version != _statusVersion)
+        {
+            return;
+        }
+
+        PayloadPreview = string.Empty;
+        SetStatus(AppStatusKind.Waiting, "Warten auf NFC-Tag…", "Legen Sie ein NFC-Tag auf den Leser.");
+    }
+
+    private static bool IsResultStatus(AppStatusKind kind) =>
+        kind is AppStatusKind.Success or AppStatusKind.Error or AppStatusKind.AlreadyExists;
+
     private void SetStatus(AppStatusKind kind, string status, string result, string? technical = null)
     {
+        _statusVersion++;
         StatusKind = kind;
         Status = status;
         ResultMessage = result;
         TechnicalDetails = technical ?? string.Empty;
+        _resultShownUtc = IsResultStatus(kind) ? DateTime.UtcNow : null;
     }
 
     private static string FormatUid(string? uid)

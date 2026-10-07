@@ -6,16 +6,24 @@
         xmlns:views="clr-namespace:ArianaNfcClient.Views"
         mc:Ignorable="d"
         Title="Ariana NFC Client"
+        Icon="/nfc.ico"
         Height="640"
         Width="880"
         MinHeight="520"
         MinWidth="720"
         WindowStartupLocation="CenterScreen"
-        Background="#15202B">
+        Background="#F8F9FA">
     <Window.Resources>
         <views:StatusKindToBrushConverter x:Key="StatusBrush" />
+        <ContextMenu x:Key="CopyableTextBoxMenu" x:Shared="False">
+            <MenuItem Header="Kopieren" Click="CopyTextBoxMenuItem_OnClick" />
+        </ContextMenu>
+        <Style x:Key="CopyableTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="ContextMenu" Value="{StaticResource CopyableTextBoxMenu}" />
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="CopyableTextBox_OnPreviewMouseLeftButtonDown" />
+        </Style>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#E8EEF4" />
+            <Setter Property="Foreground" Value="#212529" />
             <Setter Property="FontFamily" Value="Segoe UI" />
         </Style>
     </Window.Resources>
@@ -35,35 +43,32 @@
             <StackPanel>
                 <TextBlock Text="Ariana NFC Client"
                            FontSize="26"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="Auftragserzeugung für ArianaLab"
-                           Margin="0,4,0,0"
-                           Foreground="#9BB0C3"
-                           FontSize="14" />
+                           FontWeight="SemiBold"
+                           Foreground="#1B2A4A" />
                 <TextBlock Margin="0,8,0,0"
-                           Foreground="#9BB0C3"
+                           Foreground="#495057"
                            FontSize="13">
                     <Run Text="ArianaLab: " />
-                    <Run Text="{Binding BaseUrl, Mode=OneWay}" Foreground="#E8EEF4" />
+                    <Run Text="{Binding BaseUrl, Mode=OneWay}" Foreground="#212529" />
                 </TextBlock>
                 <TextBlock Margin="0,2,0,0"
-                           Foreground="#9BB0C3"
+                           Foreground="#495057"
                            FontSize="13">
                     <Run Text="Benutzer: " />
-                    <Run Text="{Binding Username, Mode=OneWay}" Foreground="#E8EEF4" />
+                    <Run Text="{Binding Username, Mode=OneWay}" Foreground="#212529" />
                 </TextBlock>
             </StackPanel>
             <StackPanel DockPanel.Dock="Right"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
                 <TextBlock Text="Leser"
-                           Foreground="#9BB0C3"
+                           Foreground="#495057"
                            FontSize="11" />
                 <TextBlock Text="{Binding ReaderName}"
                            FontSize="13" />
                 <TextBlock Text="UID"
                            Margin="0,8,0,0"
-                           Foreground="#9BB0C3"
+                           Foreground="#495057"
                            FontSize="11" />
                 <TextBlock Text="{Binding LastUid}"
                            FontFamily="Consolas"
@@ -71,19 +76,40 @@
             </StackPanel>
         </DockPanel>
 
-        <Border Grid.Row="2"
+        <Border x:Name="StatusBanner"
+                Grid.Row="2"
                 Background="{Binding StatusKind, Converter={StaticResource StatusBrush}}"
                 CornerRadius="8"
-                Padding="18,14">
-            <StackPanel>
-                <TextBlock Text="{Binding Status}"
-                           FontSize="20"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="{Binding ResultMessage}"
-                           Margin="0,6,0,0"
-                           FontSize="14"
-                           TextWrapping="Wrap" />
-            </StackPanel>
+                SizeChanged="StatusBanner_OnSizeChanged">
+            <Grid>
+                <Rectangle x:Name="StatusSweep"
+                           IsHitTestVisible="False"
+                           Visibility="Collapsed">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                            <LinearGradientBrush.RelativeTransform>
+                                <TranslateTransform x:Name="StatusSweepTransform" X="-1" />
+                            </LinearGradientBrush.RelativeTransform>
+                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                            <GradientStop Color="#00FFFFFF" Offset="0.3" />
+                            <GradientStop Color="#80FFFFFF" Offset="0.5" />
+                            <GradientStop Color="#00FFFFFF" Offset="0.7" />
+                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <StackPanel Margin="18,14">
+                    <TextBlock Text="{Binding Status}"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="White" />
+                    <TextBlock Text="{Binding ResultMessage}"
+                               Margin="0,6,0,0"
+                               FontSize="14"
+                               Foreground="White"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
         </Border>
 
         <Grid Grid.Row="4">
@@ -93,7 +119,9 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Background="#1E2C3A"
+            <Border Background="#FFFFFF"
+                    BorderBrush="#DEE2E6"
+                    BorderThickness="1"
                     CornerRadius="8"
                     Padding="16">
                 <DockPanel>
@@ -102,21 +130,25 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
                     <TextBox Text="{Binding PayloadPreview, Mode=OneWay}"
+                             Style="{StaticResource CopyableTextBox}"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
                              AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto"
                              FontFamily="Consolas"
                              FontSize="12"
-                             Background="#111A22"
-                             Foreground="#D7E3EE"
-                             BorderThickness="0"
+                             Background="#FFFFFF"
+                             Foreground="#212529"
+                             BorderBrush="#DEE2E6"
+                             BorderThickness="1"
                              Padding="10" />
                 </DockPanel>
             </Border>
 
             <Border Grid.Column="2"
-                    Background="#1E2C3A"
+                    Background="#FFFFFF"
+                    BorderBrush="#DEE2E6"
+                    BorderThickness="1"
                     CornerRadius="8"
                     Padding="16">
                 <DockPanel>
@@ -125,15 +157,17 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
                     <TextBox Text="{Binding TechnicalDetails, Mode=OneWay}"
+                             Style="{StaticResource CopyableTextBox}"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
                              AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto"
                              FontFamily="Consolas"
                              FontSize="12"
-                             Background="#111A22"
-                             Foreground="#D7E3EE"
-                             BorderThickness="0"
+                             Background="#FFFFFF"
+                             Foreground="#212529"
+                             BorderBrush="#DEE2E6"
+                             BorderThickness="1"
                              Padding="10" />
                 </DockPanel>
             </Border>
@@ -141,7 +175,7 @@
 
         <TextBlock Grid.Row="6"
                    Text=""
-                   Foreground="#7F93A6"
+                   Foreground="#6C757D"
                    FontSize="12"
                    TextWrapping="Wrap" />
     </Grid>

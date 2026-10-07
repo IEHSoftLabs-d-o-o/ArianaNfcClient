@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationTitle>NFC Tag Reader – ArianaLab</ApplicationTitle>
+    <ApplicationIcon>nfc.ico</ApplicationIcon>
     <RootNamespace>ArianaNfcClient</RootNamespace>
     <AssemblyName>ArianaNfcClient</AssemblyName>
   </PropertyGroup>
@@ -19,6 +20,10 @@
     <PackageReference Include="NLog.Extensions.Hosting" Version="6.2.1" />
     <PackageReference Include="PCSC" Version="7.0.1" />
     <PackageReference Include="PCSC.Iso7816" Version="7.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="nfc.ico" />
   </ItemGroup>
 
   <ItemGroup>

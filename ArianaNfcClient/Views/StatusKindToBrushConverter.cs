@@ -12,12 +12,10 @@ public sealed class StatusKindToBrushConverter : IValueConverter
         var kind = value is AppStatusKind status ? status : AppStatusKind.Waiting;
         var color = kind switch
         {
-            AppStatusKind.Success => Color.FromRgb(0x2F, 0x8A, 0x5F),
-            AppStatusKind.Error => Color.FromRgb(0xB8, 0x4A, 0x4A),
-            AppStatusKind.Creating or AppStatusKind.Reading or AppStatusKind.Validating => Color.FromRgb(0x2F, 0x7A, 0x8A),
-            AppStatusKind.AlreadyExists or AppStatusKind.RemoveTag => Color.FromRgb(0xB0, 0x86, 0x2B),
-            AppStatusKind.NoReader => Color.FromRgb(0x8A, 0x5A, 0x2F),
-            _ => Color.FromRgb(0x3D, 0x6B, 0x8A)
+            AppStatusKind.Success => Color.FromRgb(0x28, 0xA7, 0x45),
+            AppStatusKind.Error or AppStatusKind.NoReader => Color.FromRgb(0xDC, 0x35, 0x45),
+            AppStatusKind.AlreadyExists or AppStatusKind.RemoveTag => Color.FromRgb(0xFD, 0x7E, 0x14),
+            _ => Color.FromRgb(0x2A, 0x3E, 0x91)
         };
 
         return new SolidColorBrush(color);
