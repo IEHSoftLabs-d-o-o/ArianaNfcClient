@@ -1,15 +1,3 @@
-using System.IO;
-using System.Reflection;
-using Microsoft.Win32;
-using System.Windows;
-using System.Windows.Threading;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using NLog;
-using NLog.Extensions.Hosting;
 using ArianaNfcClient.Models;
 using ArianaNfcClient.Services;
 using ArianaNfcClient.Services.ArianaLab;
@@ -18,73 +6,94 @@ using ArianaNfcClient.Services.Nfc;
 using ArianaNfcClient.Services.Validation;
 using ArianaNfcClient.ViewModels;
 using ArianaNfcClient.Views;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NLog;
+using NLog.Extensions.Hosting;
+using Microsoft.Win32;
+using System.IO;
+using System.Reflection;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace ArianaNfcClient;
 
-public partial class App : Application
+public partial class App
 {
+    private const string ProductName = "Ariana Nfc Client";
+
     private IHost? _host;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
-
-        var nlogConfig = Path.Combine(AppContext.BaseDirectory, "nlog.config");
-        LogManager.Setup().LoadConfigurationFromFile(nlogConfig);
-        var bootstrap = LogManager.GetCurrentClassLogger();
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
-
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
-
         try
         {
-            bootstrap.Info("Application starting. Version {0}", version);
             ApplyInstalledIcon();
+            base.OnStartup(e);
 
-            _host = Host.CreateDefaultBuilder()
-                .UseContentRoot(AppContext.BaseDirectory)
-                .ConfigureAppConfiguration((_, config) =>
-                {
-                    config.SetBasePath(AppContext.BaseDirectory);
-                    config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                })
-                .UseNLog()
-                .ConfigureServices((context, services) =>
-                {
-                    services.Configure<ArianaLabOptions>(context.Configuration.GetSection(ArianaLabOptions.SectionName));
-                    services.AddSingleton<IConnectionSettingsStore, ConnectionSettingsStore>();
-                    services.AddSingleton<INfcReaderService, Acr1552NfcReaderService>();
-                    services.AddSingleton<ITagPayloadValidator, TagPayloadValidator>();
-                    services.AddHttpClient<IArianaLabClient, ArianaLabClient>(client =>
+            var nlogConfig = Path.Combine(AppContext.BaseDirectory, "nlog.config");
+            LogManager.Setup().LoadConfigurationFromFile(nlogConfig);
+            var bootstrap = LogManager.GetCurrentClassLogger();
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+
+            try
+            {
+                bootstrap.Info("Application starting. Version {0}", version);
+
+                _host = Host.CreateDefaultBuilder()
+                    .UseContentRoot(AppContext.BaseDirectory)
+                    .ConfigureAppConfiguration((_, config) =>
                     {
-                        client.Timeout = TimeSpan.FromSeconds(30);
-                    });
-                    services.AddSingleton<MainViewModel>();
-                    services.AddSingleton<MainWindow>();
-                    services.AddHostedService<NfcWatchHostedService>();
-                })
-                .Build();
+                        config.SetBasePath(AppContext.BaseDirectory);
+                        config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    })
+                    .UseNLog()
+                    .ConfigureServices((context, services) =>
+                    {
+                        services.Configure<ArianaLabOptions>(context.Configuration.GetSection(ArianaLabOptions.SectionName));
+                        services.AddSingleton<IConnectionSettingsStore, ConnectionSettingsStore>();
+                        services.AddSingleton<INfcReaderService, Acr1552NfcReaderService>();
+                        services.AddSingleton<ITagPayloadValidator, TagPayloadValidator>();
+                        services.AddHttpClient<IArianaLabClient, ArianaLabClient>(client =>
+                        {
+                            client.Timeout = TimeSpan.FromSeconds(30);
+                        });
+                        services.AddSingleton<MainViewModel>();
+                        services.AddSingleton<MainWindow>();
+                        services.AddHostedService<NfcWatchHostedService>();
+                    })
+                    .Build();
 
-            ApplyLocalConnection(_host.Services);
+                ApplyLocalConnection(_host.Services);
 
-            await _host.StartAsync();
+                await _host.StartAsync();
 
-            var logger = _host.Services.GetRequiredService<ILogger<App>>();
-            var options = _host.Services.GetRequiredService<IOptions<ArianaLabOptions>>().Value;
-            logger.LogInformation(
-                "Application started. Version {Version}. ArianaLab {BaseUrl}",
-                version,
-                string.IsNullOrWhiteSpace(options.BaseUrl) ? "(not configured)" : options.BaseUrl);
+                var logger = _host.Services.GetRequiredService<ILogger<App>>();
+                var options = _host.Services.GetRequiredService<IOptions<ArianaLabOptions>>().Value;
+                logger.LogInformation(
+                    "Application started. Version {Version}. ArianaLab {BaseUrl}",
+                    version,
+                    string.IsNullOrWhiteSpace(options.BaseUrl) ? "(not configured)" : options.BaseUrl);
 
-            var window = _host.Services.GetRequiredService<MainWindow>();
-            window.Show();
+                var window = _host.Services.GetRequiredService<MainWindow>();
+                window.Show();
+            }
+            catch (Exception ex)
+            {
+                bootstrap.Error(ex, "Application startup failed");
+                LogManager.Shutdown();
+                throw;
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            bootstrap.Error(ex, "Application startup failed");
-            LogManager.Shutdown();
-            throw;
+            // ignored
         }
     }
 
@@ -92,29 +101,34 @@ public partial class App : Application
     {
         try
         {
-            var logger = _host?.Services.GetService<ILogger<App>>();
-            logger?.LogInformation("Application shutting down");
-
-            if (_host is not null)
+            try
             {
-                await _host.StopAsync(TimeSpan.FromSeconds(2));
-                _host.Dispose();
-                _host = null;
+                var logger = _host?.Services.GetService<ILogger<App>>();
+                logger?.LogInformation("Application shutting down");
+
+                if (_host is not null)
+                {
+                    await _host.StopAsync(TimeSpan.FromSeconds(2));
+                    _host.Dispose();
+                    _host = null;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            LogManager.GetCurrentClassLogger().Error(ex, "Application shutdown failed");
-        }
-        finally
-        {
-            LogManager.Shutdown();
-        }
+            catch (Exception ex)
+            {
+                LogManager.GetCurrentClassLogger().Error(ex, "Application shutdown failed");
+            }
+            finally
+            {
+                LogManager.Shutdown();
+            }
 
-        base.OnExit(e);
+            base.OnExit(e);
+        }
+        catch
+        {
+            // ignored
+        }
     }
-
-    private const string ProductName = "Ariana NFC Client";
 
     private static void ApplyInstalledIcon()
     {
@@ -153,9 +167,8 @@ public partial class App : Application
                 appKey.SetValue("DisplayIcon", iconPath);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            LogManager.GetCurrentClassLogger().Warn(ex, "Programs and Features icon could not be set");
         }
     }
 
