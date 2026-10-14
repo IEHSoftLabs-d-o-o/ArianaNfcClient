@@ -15,6 +15,9 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
         AllowTrailingCommas = true
     };
 
+    private static readonly string[] Wassertypen = ["Kaltwasser", "Heisswasser", "Mischwasser"];
+    private static readonly string[] WeitergabeWerte = ["Ja", "Nein", "WennOkJa"];
+
     private readonly JsonNode? _scheme;
 
     public TagPayloadValidator()
@@ -63,6 +66,7 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
 
         var schemeErrors = ValidateAgainstScheme(node, _scheme, "$");
         schemeErrors.AddRange(ValidateGesundheitsamt(node));
+        schemeErrors.AddRange(ValidateWassertyp(node));
         if (schemeErrors.Count > 0)
         {
             return new TagValidationResult(
@@ -108,24 +112,24 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
                 $"Format={payload.Format ?? "(null)"}");
         }
 
-        if (payload.Version != 5)
+        if (payload.Version != 8)
         {
             return new TagValidationResult(
                 false,
                 Pretty(node),
                 null,
-                "Feld \"Version\" muss 5 sein.",
+                "Feld \"Version\" muss 8 sein.",
                 $"Version={payload.Version?.ToString() ?? "(null)"}");
         }
 
-        if (payload.Analysen is null || payload.Analysen.Count == 0)
+        if (payload.Analysen is { Count: 0 })
         {
             return new TagValidationResult(
                 false,
                 Pretty(node),
                 null,
                 "Feld \"Analysen\" muss mindestens einen Eintrag enthalten.",
-                "Analysen is missing or empty.");
+                "Analysen is empty.");
         }
 
         return new TagValidationResult(true, Pretty(node), payload, null, null);
@@ -139,18 +143,40 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
             return errors;
         }
 
-        if (!string.Equals(ReadString(amt["Weitergabe"]), "Ja", StringComparison.OrdinalIgnoreCase))
+        var weitergabe = ReadString(amt["Weitergabe"]);
+        if (weitergabe is not null && !WeitergabeWerte.Contains(weitergabe, StringComparer.Ordinal))
+        {
+            errors.Add("Feld \"Weitergabe\" muss \"Ja\", \"Nein\" oder \"WennOkJa\" sein.");
+            errors.Add($"$.Gesundheitsamt.Weitergabe has unexpected value {weitergabe}.");
+        }
+
+        if (weitergabe is null || string.Equals(weitergabe, "Nein", StringComparison.Ordinal))
         {
             return errors;
         }
 
-        foreach (var name in new[] { "Kurzname", "TeisKreisNummer" })
+        if (string.IsNullOrWhiteSpace(ReadString(amt["Kurzname"])))
         {
-            if (string.IsNullOrWhiteSpace(ReadString(amt[name])))
-            {
-                errors.Add($"Feld \"{name}\" fehlt, wenn Weitergabe \"Ja\" ist.");
-                errors.Add($"$.Gesundheitsamt.{name} is required when Weitergabe is Ja.");
-            }
+            errors.Add("Feld \"Kurzname\" fehlt, wenn Weitergabe nicht \"Nein\" ist.");
+            errors.Add("$.Gesundheitsamt.Kurzname is required unless Weitergabe is Nein.");
+        }
+
+        return errors;
+    }
+
+    private static List<string> ValidateWassertyp(JsonNode instance)
+    {
+        var errors = new List<string>();
+        if (instance is not JsonObject root || root["Entnahme"] is not JsonObject entnahme)
+        {
+            return errors;
+        }
+
+        var wassertyp = ReadString(entnahme["Wassertyp"]);
+        if (wassertyp is not null && !Wassertypen.Contains(wassertyp, StringComparer.Ordinal))
+        {
+            errors.Add("Feld \"Wassertyp\" muss \"Kaltwasser\", \"Heisswasser\" oder \"Mischwasser\" sein.");
+            errors.Add($"$.Entnahme.Wassertyp has unexpected value {wassertyp}.");
         }
 
         return errors;

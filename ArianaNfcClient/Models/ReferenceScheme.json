@@ -4,13 +4,10 @@
     "Format",
     "Version",
     "Protokoll",
-    "Probenehmer",
     "Kunde",
     "Gesundheitsamt",
     "Auftragsvorlage",
     "Entnahme",
-    "Beschaffenheit",
-    "Analysen",
     "Bericht"
   ],
   "properties": {
@@ -26,14 +23,13 @@
     },
     "Probenehmer": {
       "type": "object",
-      "required": ["Bezeichnung"],
       "properties": {
         "Bezeichnung": { "type": "string" }
       }
     },
     "Kunde": {
       "type": "object",
-      "required": ["Nummer", "Name"],
+      "required": ["Name"],
       "properties": {
         "Nummer": { "type": "string" },
         "Name": { "type": "string" }
@@ -57,9 +53,12 @@
     },
     "Entnahme": {
       "type": "object",
-      "required": ["Zeitpunkt", "Wassertyp", "Aufbereitung", "Stelle"],
+      "required": ["Wassertyp", "Stelle"],
       "properties": {
         "Zeitpunkt": { "type": "string" },
+        "Objekt": { "type": "string" },
+        "ZidNr": { "type": "string" },
+        "ArtDesWassers": { "type": "string" },
         "Wassertyp": { "type": "string" },
         "Aufbereitung": { "type": "string" },
         "Stelle": { "type": "string" }
@@ -67,27 +66,47 @@
     },
     "Beschaffenheit": {
       "type": "object",
-      "required": ["Klarheit", "Färbung", "Geruch", "Temperatur"],
       "properties": {
         "Klarheit": { "type": "string" },
-        "Färbung": { "type": "string" },
+        "AnzahlProbenKlarheit": { "type": "integer" },
+        "Faerbung": { "type": "string" },
         "Geruch": { "type": "string" },
-        "Temperatur": { "type": "number" }
+        "Temperatur": { "type": "number" },
+        "Sonstiges": { "type": "string" }
+      }
+    },
+    "Flaschen": {
+      "type": "object",
+      "properties": {
+        "Chemie": { "type": "integer" },
+        "Mikrobiologie": { "type": "integer" },
+        "Ph": { "type": "integer" },
+        "Leitfaehigkeit": { "type": "integer" }
       }
     },
     "Analysen": {
       "type": "array",
       "items": { "type": "string" }
     },
+    "ExtraTexte": {
+      "type": "object",
+      "properties": {
+        "Extra2": { "type": "string" },
+        "Extra3": { "type": "string" },
+        "Extra4": { "type": "string" }
+      }
+    },
     "Bericht": {
       "type": "object",
-      "required": ["Bestätigen", "Probenahmegebuehr", "ProbenahmegebuehrUeberLabor", "UnterschriftDatum"],
+      "required": ["Probenahmegebuehr", "ProbenahmegebuehrUeberLabor"],
       "properties": {
-        "Bestätigen": { "type": "boolean" },
+        "An": { "type": "string" },
+        "Kostentraeger": { "type": "string" },
         "Probenahmegebuehr": { "type": "boolean" },
         "ProbenahmegebuehrUeberLabor": { "type": "boolean" },
         "UnterschriftDatum": { "type": "string" }
       }
-    }
+    },
+    "Bemerkung": { "type": "string" }
   }
 }

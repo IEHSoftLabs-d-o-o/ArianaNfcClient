@@ -31,11 +31,20 @@ public sealed class NfcTagPayload
     [JsonPropertyName("Beschaffenheit")]
     public BeschaffenheitPayload? Beschaffenheit { get; set; }
 
+    [JsonPropertyName("Flaschen")]
+    public FlaschenPayload? Flaschen { get; set; }
+
     [JsonPropertyName("Analysen")]
     public List<string>? Analysen { get; set; }
 
+    [JsonPropertyName("ExtraTexte")]
+    public ExtraTextePayload? ExtraTexte { get; set; }
+
     [JsonPropertyName("Bericht")]
     public BerichtPayload? Bericht { get; set; }
+
+    [JsonPropertyName("Bemerkung")]
+    public string? Bemerkung { get; set; }
 }
 
 public sealed class ProtokollPayload
@@ -85,6 +94,15 @@ public sealed class EntnahmePayload
     [JsonPropertyName("Zeitpunkt")]
     public string? Zeitpunkt { get; set; }
 
+    [JsonPropertyName("Objekt")]
+    public string? Objekt { get; set; }
+
+    [JsonPropertyName("ZidNr")]
+    public string? ZidNr { get; set; }
+
+    [JsonPropertyName("ArtDesWassers")]
+    public string? ArtDesWassers { get; set; }
+
     [JsonPropertyName("Wassertyp")]
     public string? Wassertyp { get; set; }
 
@@ -100,7 +118,10 @@ public sealed class BeschaffenheitPayload
     [JsonPropertyName("Klarheit")]
     public string? Klarheit { get; set; }
 
-    [JsonPropertyName("Färbung")]
+    [JsonPropertyName("AnzahlProbenKlarheit")]
+    public int? AnzahlProbenKlarheit { get; set; }
+
+    [JsonPropertyName("Faerbung")]
     public string? Faerbung { get; set; }
 
     [JsonPropertyName("Geruch")]
@@ -108,12 +129,45 @@ public sealed class BeschaffenheitPayload
 
     [JsonPropertyName("Temperatur")]
     public double? Temperatur { get; set; }
+
+    [JsonPropertyName("Sonstiges")]
+    public string? Sonstiges { get; set; }
+}
+
+public sealed class FlaschenPayload
+{
+    [JsonPropertyName("Chemie")]
+    public int? Chemie { get; set; }
+
+    [JsonPropertyName("Mikrobiologie")]
+    public int? Mikrobiologie { get; set; }
+
+    [JsonPropertyName("Ph")]
+    public int? Ph { get; set; }
+
+    [JsonPropertyName("Leitfaehigkeit")]
+    public int? Leitfaehigkeit { get; set; }
+}
+
+public sealed class ExtraTextePayload
+{
+    [JsonPropertyName("Extra2")]
+    public string? Extra2 { get; set; }
+
+    [JsonPropertyName("Extra3")]
+    public string? Extra3 { get; set; }
+
+    [JsonPropertyName("Extra4")]
+    public string? Extra4 { get; set; }
 }
 
 public sealed class BerichtPayload
 {
-    [JsonPropertyName("Bestätigen")]
-    public bool? Bestaetigen { get; set; }
+    [JsonPropertyName("An")]
+    public string? An { get; set; }
+
+    [JsonPropertyName("Kostentraeger")]
+    public string? Kostentraeger { get; set; }
 
     [JsonPropertyName("Probenahmegebuehr")]
     public bool? Probenahmegebuehr { get; set; }

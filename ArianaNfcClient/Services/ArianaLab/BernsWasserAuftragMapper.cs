@@ -14,7 +14,22 @@ public static class BernsWasserAuftragMapper
         ("Gesundheitsamt", p => p.Gesundheitsamt?.Kurzname),
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
-        ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt))
+        ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt)),
+        ("Objekt", p => p.Entnahme?.Objekt),
+        ("ZID-Nummer", p => p.Entnahme?.ZidNr),
+        ("Art des Wassers", p => p.Entnahme?.ArtDesWassers),
+        ("Anzahl Proben Klarheit", p => Count(p.Beschaffenheit?.AnzahlProbenKlarheit)),
+        ("Sonstiges", p => p.Beschaffenheit?.Sonstiges),
+        ("Anzahl Flaschen Chemie", p => Count(p.Flaschen?.Chemie)),
+        ("Anzahl Flaschen Mikrobiologie", p => Count(p.Flaschen?.Mikrobiologie)),
+        ("Anzahl Flaschen PH", p => Count(p.Flaschen?.Ph)),
+        ("Anzahl Flaschen Leitfähigkeit", p => Count(p.Flaschen?.Leitfaehigkeit)),
+        ("Prüfbericht an", p => p.Bericht?.An),
+        ("Kostenträger", p => p.Bericht?.Kostentraeger),
+        ("Auftragsbemerkung", p => p.Bemerkung),
+        ("Extra2", p => p.ExtraTexte?.Extra2),
+        ("Extra3", p => p.ExtraTexte?.Extra3),
+        ("Extra4", p => p.ExtraTexte?.Extra4)
     ];
 
     public static JsonObject Map(
@@ -55,7 +70,6 @@ public static class BernsWasserAuftragMapper
 
         RemoveAttributes(attributes, SensoryAttributeNames);
         SetProbenahmeort(attributes, payload.Entnahme?.Stelle);
-        SetNamedAttribute(attributes, "Bestätigen", FormatBool(payload.Bericht?.Bestaetigen), "Bestätigen", "Bestättigen", "Bestaetigen");
         SetNamedAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebühr", "Probenahmegebuehr");
         SetNamedAttribute(
             attributes,
@@ -84,6 +98,7 @@ public static class BernsWasserAuftragMapper
 
         FilterAnalysen(auftrag, payload.Analysen);
         EnsureAnalysenFromTag(auftrag, payload.Analysen);
+        RenameExtraAnalysen(auftrag, payload.ExtraTexte);
         ApplyBeschaffenheitToAnalysen(auftrag, payload.Beschaffenheit);
         return auftrag;
     }
@@ -164,6 +179,57 @@ public static class BernsWasserAuftragMapper
 
     private static string? ReadString(JsonNode? node) =>
         node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+
+    private static readonly (string From, Func<ExtraTextePayload, string?> Text)[] ExtraAnalyseNames =
+    [
+        ("Extra2", e => e.Extra2),
+        ("Extra3", e => e.Extra3),
+        ("Extra4", e => e.Extra4)
+    ];
+
+    private static void RenameExtraAnalysen(JsonObject auftrag, ExtraTextePayload? extra)
+    {
+        if (extra is null || auftrag["Positionen"] is not JsonArray positionen)
+        {
+            return;
+        }
+
+        foreach (var positionNode in positionen)
+        {
+            if (positionNode is not JsonObject position || position["Analysen"] is not JsonArray analysen)
+            {
+                continue;
+            }
+
+            foreach (var analyseNode in analysen)
+            {
+                if (analyseNode is not JsonObject analyse)
+                {
+                    continue;
+                }
+
+                var name = ReadString(analyse["Name"]);
+                var text = name is null ? null : ExtraTextFor(name, extra);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    analyse["Name"] = text;
+                }
+            }
+        }
+    }
+
+    private static string? ExtraTextFor(string analyseName, ExtraTextePayload extra)
+    {
+        foreach (var (from, text) in ExtraAnalyseNames)
+        {
+            if (string.Equals(from, analyseName, StringComparison.OrdinalIgnoreCase))
+            {
+                return text(extra);
+            }
+        }
+
+        return null;
+    }
 
     private static void EnsureAnalysenFromTag(JsonObject auftrag, List<string>? analysen)
     {
@@ -318,6 +384,9 @@ public static class BernsWasserAuftragMapper
             target[name] = value;
         }
     }
+
+    private static string? Count(int? value) =>
+        value?.ToString(CultureInfo.InvariantCulture);
 
     private static string? FormatBool(bool? value) =>
         value is null ? null : value.Value ? "Ja" : "Nein";
