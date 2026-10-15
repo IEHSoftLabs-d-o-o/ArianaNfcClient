@@ -69,15 +69,16 @@ public partial class MainViewModel : ObservableObject
     private string _lastUid = "–";
 
     public ConnectionSettings GetConnection() =>
-        new(_options.BaseUrl, _options.Username, _options.Password);
+        new(_options.BaseUrl, _options.Username, _options.Password, _options.AutoActivateAuftrag);
 
-    public void SaveConnection(string baseUrl, string username, string password)
+    public void SaveConnection(string baseUrl, string username, string password, bool autoActivateAuftrag)
     {
-        var settings = new ConnectionSettings(baseUrl.Trim(), username.Trim(), password);
+        var settings = new ConnectionSettings(baseUrl.Trim(), username.Trim(), password, autoActivateAuftrag);
         _connectionSettings.Save(settings);
         _options.BaseUrl = settings.BaseUrl;
         _options.Username = settings.Username;
         _options.Password = settings.Password;
+        _options.AutoActivateAuftrag = settings.AutoActivateAuftrag;
         _arianaLabClient.ApplyConnection();
         ShowConnection();
     }
@@ -196,7 +197,35 @@ public partial class MainViewModel : ObservableObject
             cancellationToken);
 
         _waitingForRemoval = true;
-        if (result.AlreadyExists)
+        if (_options.AutoActivateAuftrag &&
+            result.Succeeded &&
+            string.IsNullOrWhiteSpace(result.AuftragNummer))
+        {
+            _logger.LogError(
+                "Auftrag activation skipped. UID {Uid}. Protocol {ProtocolId}. Auftrag id is missing",
+                evt.Uid,
+                protocolId);
+            SetStatus(
+                AppStatusKind.Error,
+                "Fehler – bitte Tag entfernen",
+                "Der Auftrag wurde angelegt, konnte aber nicht aktiviert werden.",
+                "Auftrag id is missing.");
+            return;
+        }
+
+        var activated = false;
+        if (ShouldActivate(result))
+        {
+            SetStatus(
+                AppStatusKind.Creating,
+                "Auftrag wird aktiviert...",
+                "Der Auftrag wird in ArianaLab als Probe aktiviert.");
+            await Dispatcher.Yield();
+            result = await _arianaLabClient.ActivateAuftragAsync(result.AuftragNummer!, cancellationToken);
+            activated = true;
+        }
+
+        if (!activated && result.AlreadyExists)
         {
             _logger.LogWarning(
                 "Auftrag already exists. Id {AuftragId}. UID {Uid}. Protocol {ProtocolId}. {Message}",
@@ -206,19 +235,39 @@ public partial class MainViewModel : ObservableObject
                 result.Message);
             SetStatus(
                 AppStatusKind.AlreadyExists,
-                "Auftrag bereits vorhanden – bitte Tag entfernen",
+                result.IsActivated
+                    ? "Probe bereits vorhanden – bitte Tag entfernen"
+                    : "Auftrag bereits vorhanden – bitte Tag entfernen",
                 result.Message,
                 result.TechnicalDetails);
             return;
         }
 
-        if (result.Succeeded)
+        if (result.Succeeded && activated)
+        {
+            _logger.LogInformation(
+                "Auftrag activated. Id {AuftragId}. Probe {ProbenNummer}. UID {Uid}. Protocol {ProtocolId}",
+                result.AuftragNummer,
+                result.ProbenNummer,
+                evt.Uid,
+                protocolId);
+        }
+        else if (result.Succeeded)
         {
             _logger.LogInformation(
                 "Auftrag created. Id {AuftragId}. UID {Uid}. Protocol {ProtocolId}",
                 result.AuftragNummer,
                 evt.Uid,
                 protocolId);
+        }
+        else if (activated)
+        {
+            _logger.LogError(
+                "Auftrag activation failed. UID {Uid}. Protocol {ProtocolId}. {Message}. {Details}",
+                evt.Uid,
+                protocolId,
+                result.Message,
+                result.TechnicalDetails);
         }
         else
         {
@@ -232,9 +281,32 @@ public partial class MainViewModel : ObservableObject
 
         SetStatus(
             result.Succeeded ? AppStatusKind.Success : AppStatusKind.Error,
-            result.Succeeded ? "Auftrag angelegt – bitte Tag entfernen" : "Fehler – bitte Tag entfernen",
+            SuccessStatus(result.Succeeded, activated, result.ProbenNummer),
             result.Message,
             result.TechnicalDetails);
+    }
+
+    private bool ShouldActivate(AuftragCreateResult result) =>
+        _options.AutoActivateAuftrag &&
+        !result.IsActivated &&
+        !string.IsNullOrWhiteSpace(result.AuftragNummer) &&
+        (result.Succeeded || result.AlreadyExists);
+
+    private static string SuccessStatus(bool succeeded, bool activated, string? probenNummer)
+    {
+        if (!succeeded)
+        {
+            return "Fehler – bitte Tag entfernen";
+        }
+
+        if (!string.IsNullOrWhiteSpace(probenNummer))
+        {
+            return "Probe angelegt – bitte Tag entfernen";
+        }
+
+        return activated
+            ? "Auftrag aktiviert – bitte Tag entfernen"
+            : "Auftrag angelegt – bitte Tag entfernen";
     }
 
     private bool ShouldIgnore(string? uid) =>
@@ -257,7 +329,7 @@ public partial class MainViewModel : ObservableObject
 
     private TimeSpan ResultDisplayRemaining()
     {
-        if (_resultShownUtc is not DateTime shownUtc || !IsResultStatus(StatusKind))
+        if (_resultShownUtc is not { } shownUtc || !IsResultStatus(StatusKind))
         {
             return TimeSpan.Zero;
         }

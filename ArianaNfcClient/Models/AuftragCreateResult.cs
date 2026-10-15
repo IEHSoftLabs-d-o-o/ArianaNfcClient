@@ -7,4 +7,5 @@ public sealed record AuftragCreateResult(
     string? AuftragNummer = null,
     string? ProbenNummer = null,
     int? HttpStatus = null,
-    bool AlreadyExists = false);
+    bool AlreadyExists = false,
+    bool IsActivated = false);

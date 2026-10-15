@@ -18,12 +18,7 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
     private static readonly string[] Wassertypen = ["Kaltwasser", "Heisswasser", "Mischwasser"];
     private static readonly string[] WeitergabeWerte = ["Ja", "Nein", "WennOkJa"];
 
-    private readonly JsonNode? _scheme;
-
-    public TagPayloadValidator()
-    {
-        _scheme = LoadEmbeddedScheme();
-    }
+    private readonly JsonNode? _scheme = LoadEmbeddedScheme();
 
     public TagValidationResult Validate(string? rawPayload)
     {

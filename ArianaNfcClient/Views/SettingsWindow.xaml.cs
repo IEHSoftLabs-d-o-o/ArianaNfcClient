@@ -4,23 +4,26 @@ using System.Windows;
 
 namespace ArianaNfcClient.Views;
 
-public partial class SettingsWindow : Window
+public partial class SettingsWindow
 {
     private static readonly string LogDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
 
     private readonly string _originalBaseUrl;
     private readonly string _originalUsername;
     private readonly string _originalPassword;
+    private readonly bool _originalAutoActivateAuftrag;
 
-    public SettingsWindow(string baseUrl, string username, string password)
+    public SettingsWindow(string baseUrl, string username, string password, bool autoActivateAuftrag)
     {
         InitializeComponent();
         _originalBaseUrl = baseUrl;
         _originalUsername = username;
         _originalPassword = password;
+        _originalAutoActivateAuftrag = autoActivateAuftrag;
         BaseUrlBox.Text = baseUrl;
         UsernameBox.Text = username;
         PasswordBox.Password = password;
+        AutoActivateBox.IsChecked = autoActivateAuftrag;
         UpdateSaveEnabled();
     }
 
@@ -30,6 +33,8 @@ public partial class SettingsWindow : Window
 
     public string Password { get; private set; } = string.Empty;
 
+    public bool AutoActivateAuftrag { get; private set; } = true;
+
     private void Setting_OnChanged(object sender, RoutedEventArgs e)
     {
         UpdateSaveEnabled();
@@ -37,10 +42,16 @@ public partial class SettingsWindow : Window
 
     private void UpdateSaveEnabled()
     {
+        if (SaveButton is null)
+        {
+            return;
+        }
+
         SaveButton.IsEnabled =
             BaseUrlBox.Text != _originalBaseUrl ||
             UsernameBox.Text != _originalUsername ||
-            PasswordBox.Password != _originalPassword;
+            PasswordBox.Password != _originalPassword ||
+            AutoActivateBox.IsChecked != _originalAutoActivateAuftrag;
     }
 
     private void SaveButton_OnClick(object sender, RoutedEventArgs e)
@@ -62,6 +73,7 @@ public partial class SettingsWindow : Window
         BaseUrl = baseUrl;
         Username = UsernameBox.Text.Trim();
         Password = PasswordBox.Password;
+        AutoActivateAuftrag = AutoActivateBox.IsChecked == true;
         DialogResult = true;
     }
 

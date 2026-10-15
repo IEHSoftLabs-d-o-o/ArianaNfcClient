@@ -11,7 +11,7 @@ using ArianaNfcClient.ViewModels;
 
 namespace ArianaNfcClient.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow
 {
     private static readonly TimeSpan SweepDuration = TimeSpan.FromSeconds(1.8);
 
@@ -35,13 +35,21 @@ public partial class MainWindow : Window
     private void SettingsButton_OnClick(object sender, RoutedEventArgs e)
     {
         var current = _viewModel.GetConnection();
-        var dialog = new SettingsWindow(current.BaseUrl, current.Username, current.Password)
+        var dialog = new SettingsWindow(
+            current.BaseUrl,
+            current.Username,
+            current.Password,
+            current.AutoActivateAuftrag)
         {
             Owner = this
         };
         if (dialog.ShowDialog() == true)
         {
-            _viewModel.SaveConnection(dialog.BaseUrl, dialog.Username, dialog.Password);
+            _viewModel.SaveConnection(
+                dialog.BaseUrl,
+                dialog.Username,
+                dialog.Password,
+                dialog.AutoActivateAuftrag);
         }
     }
 

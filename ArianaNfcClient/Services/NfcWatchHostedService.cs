@@ -1,46 +1,36 @@
-using System.Windows;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using ArianaNfcClient.Services.Nfc;
 using ArianaNfcClient.ViewModels;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System.Windows;
 
 namespace ArianaNfcClient.Services;
 
-public sealed class NfcWatchHostedService : BackgroundService
+public sealed class NfcWatchHostedService(
+    INfcReaderService nfcReaderService,
+    MainViewModel viewModel,
+    ILogger<NfcWatchHostedService> logger)
+    : BackgroundService
 {
-    private readonly INfcReaderService _nfcReaderService;
-    private readonly MainViewModel _viewModel;
-    private readonly ILogger<NfcWatchHostedService> _logger;
-
-    public NfcWatchHostedService(
-        INfcReaderService nfcReaderService,
-        MainViewModel viewModel,
-        ILogger<NfcWatchHostedService> logger)
-    {
-        _nfcReaderService = nfcReaderService;
-        _viewModel = viewModel;
-        _logger = logger;
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("NFC watch started");
+        logger.LogInformation("NFC watch started");
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    await foreach (var evt in _nfcReaderService.WatchAsync(stoppingToken))
+                    await foreach (var evt in nfcReaderService.WatchAsync(stoppingToken))
                     {
                         var dispatcher = Application.Current?.Dispatcher;
                         if (dispatcher is null)
                         {
-                            await _viewModel.HandleEventAsync(evt, stoppingToken);
+                            await viewModel.HandleEventAsync(evt, stoppingToken);
                             continue;
                         }
 
-                        await dispatcher.Invoke(() => _viewModel.HandleEventAsync(evt, stoppingToken));
+                        await dispatcher.Invoke(() => viewModel.HandleEventAsync(evt, stoppingToken));
                     }
 
                     break;
@@ -51,7 +41,7 @@ public sealed class NfcWatchHostedService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "NFC watch loop failed");
+                    logger.LogError(ex, "NFC watch loop failed");
                     try
                     {
                         await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
@@ -65,7 +55,7 @@ public sealed class NfcWatchHostedService : BackgroundService
         }
         finally
         {
-            _logger.LogInformation("NFC watch stopped");
+            logger.LogInformation("NFC watch stopped");
         }
     }
 }

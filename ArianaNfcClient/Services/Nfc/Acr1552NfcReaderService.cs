@@ -386,8 +386,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             return true;
         }
 
-        if (ex is PCSCException pcsc &&
-            pcsc.SCardError is SCardError.RemovedCard or SCardError.NoSmartcard)
+        if (ex is PCSCException { SCardError: SCardError.RemovedCard or SCardError.NoSmartcard })
         {
             return true;
         }
@@ -524,7 +523,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             pages.AddRange(response.Data);
         }
 
-        return TryDecodeType2Memory(pages.ToArray(), out json, out error);
+        return TryDecodeType2Memory([.. pages], out json, out error);
     }
 
     private static bool TryReadViaTransparentSession(ICardReader reader, out string? json, out string? error)
@@ -572,7 +571,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                 memory.AddRange(data);
             }
 
-            return TryDecodeType2Memory(memory.ToArray(), out json, out error);
+            return TryDecodeType2Memory([.. memory], out json, out error);
         }
         finally
         {
@@ -623,7 +622,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             var response = Transmit(reader, [0x00, 0xB0, p1, p2, chunk]);
             if (!response.IsSuccess || response.Data.Length == 0)
             {
-                return buffer.Count > 0 ? buffer.ToArray() : null;
+                return buffer.Count > 0 ? [.. buffer] : null;
             }
 
             buffer.AddRange(response.Data);
@@ -631,7 +630,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             remaining -= response.Data.Length;
         }
 
-        return buffer.ToArray();
+        return [.. buffer];
     }
 
     private static ApduResponse Transmit(ICardReader reader, byte[] command)
@@ -706,18 +705,6 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
         catch
         {
             // ignored
-        }
-    }
-
-    private static async Task WaitAsync(TimeSpan delay, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(delay, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // expected on shutdown
         }
     }
 

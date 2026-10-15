@@ -7,4 +7,8 @@ public interface IConnectionSettingsStore
     void Save(ConnectionSettings settings);
 }
 
-public sealed record ConnectionSettings(string BaseUrl, string Username, string Password);
+public sealed record ConnectionSettings(
+    string BaseUrl,
+    string Username,
+    string Password,
+    bool AutoActivateAuftrag = true);

@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
@@ -54,7 +55,16 @@
                          PasswordChanged="Setting_OnChanged" />
         </StackPanel>
 
-        <StackPanel Grid.Row="3"
+        <CheckBox x:Name="AutoActivateBox"
+                  Grid.Row="3"
+                  Margin="0,14,0,0"
+                  Content="Auftrag automatisch zu Probe aktivieren"
+                  Foreground="#212529"
+                  IsChecked="True"
+                  Checked="Setting_OnChanged"
+                  Unchecked="Setting_OnChanged" />
+
+        <StackPanel Grid.Row="4"
                     Margin="0,20,0,0"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center">

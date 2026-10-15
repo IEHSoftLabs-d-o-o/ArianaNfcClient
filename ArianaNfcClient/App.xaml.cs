@@ -185,6 +185,7 @@ public partial class App
         options.BaseUrl = connection.BaseUrl;
         options.Username = connection.Username;
         options.Password = connection.Password;
+        options.AutoActivateAuftrag = connection.AutoActivateAuftrag;
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

@@ -6,16 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace ArianaNfcClient.Services.Connection;
 
-public sealed class ConnectionSettingsStore : IConnectionSettingsStore
+public sealed class ConnectionSettingsStore(ILogger<ConnectionSettingsStore> logger) : IConnectionSettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
-    private readonly ILogger<ConnectionSettingsStore> _logger;
-
-    public ConnectionSettingsStore(ILogger<ConnectionSettingsStore> logger)
-    {
-        _logger = logger;
-    }
 
     public static string FilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -35,11 +28,12 @@ public sealed class ConnectionSettingsStore : IConnectionSettingsStore
             return new ConnectionSettings(
                 stored.BaseUrl ?? string.Empty,
                 stored.Username ?? string.Empty,
-                Unprotect(stored.PasswordProtected));
+                Unprotect(stored.PasswordProtected),
+                stored.AutoActivateAuftrag ?? true);
         }
         catch (Exception ex) when (ex is JsonException or IOException or CryptographicException)
         {
-            _logger.LogWarning(ex, "Connection settings could not be read from {Path}", FilePath);
+            logger.LogWarning(ex, "Connection settings could not be read from {Path}", FilePath);
             return new ConnectionSettings(string.Empty, string.Empty, string.Empty);
         }
     }
@@ -54,12 +48,13 @@ public sealed class ConnectionSettingsStore : IConnectionSettingsStore
 
         var stored = new ConnectionFile
         {
-            BaseUrl = settings.BaseUrl ?? string.Empty,
-            Username = settings.Username ?? string.Empty,
-            PasswordProtected = Protect(settings.Password ?? string.Empty)
+            BaseUrl = settings.BaseUrl,
+            Username = settings.Username,
+            PasswordProtected = Protect(settings.Password),
+            AutoActivateAuftrag = settings.AutoActivateAuftrag
         };
         File.WriteAllText(FilePath, JsonSerializer.Serialize(stored, JsonOptions));
-        _logger.LogInformation("Connection settings saved");
+        logger.LogInformation("Connection settings saved");
     }
 
     private string Unprotect(string? protectedPassword)
@@ -77,7 +72,7 @@ public sealed class ConnectionSettingsStore : IConnectionSettingsStore
         }
         catch (Exception ex) when (ex is FormatException or CryptographicException)
         {
-            _logger.LogWarning("Stored password could not be decrypted");
+            logger.LogWarning("Stored password could not be decrypted");
             return string.Empty;
         }
     }
@@ -98,10 +93,12 @@ public sealed class ConnectionSettingsStore : IConnectionSettingsStore
 
     private sealed class ConnectionFile
     {
-        public string? BaseUrl { get; set; }
+        public string? BaseUrl { get; init; }
 
-        public string? Username { get; set; }
+        public string? Username { get; init; }
 
-        public string? PasswordProtected { get; set; }
+        public string? PasswordProtected { get; init; }
+
+        public bool? AutoActivateAuftrag { get; init; }
     }
 }

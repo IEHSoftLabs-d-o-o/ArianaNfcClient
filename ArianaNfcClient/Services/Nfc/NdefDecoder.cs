@@ -155,7 +155,7 @@ public static class NdefDecoder
                     return false;
                 }
 
-                ndef = memory.Slice(i + headerSize, available).ToArray();
+                ndef = [.. memory.Slice(i + headerSize, available)];
                 return true;
             }
 

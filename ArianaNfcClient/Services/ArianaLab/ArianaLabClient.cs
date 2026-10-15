@@ -51,7 +51,7 @@ public sealed class ArianaLabClient : IArianaLabClient
             return;
         }
 
-        var raw = $"{_options.Username}:{_options.Password ?? string.Empty}";
+        var raw = $"{_options.Username}:{_options.Password}";
         var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
     }
@@ -141,6 +141,106 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
     }
 
+    public async Task<AuftragCreateResult> ActivateAuftragAsync(
+        string auftragId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(auftragId))
+        {
+            _logger.LogError("Auftrag activation failed. Auftrag id is missing");
+            return new AuftragCreateResult(
+                false,
+                "Der Auftrag kann nicht aktiviert werden.",
+                "Auftrag id is missing.");
+        }
+
+        var createPath = string.IsNullOrWhiteSpace(_options.CreatePath)
+            ? DefaultCreatePath
+            : _options.CreatePath;
+        var path = $"{createPath.TrimEnd('/')}/{Uri.EscapeDataString(auftragId)}/Aktivieren";
+
+        try
+        {
+            using var response = await _httpClient.PostAsync(path, content: null, cancellationToken);
+            var text = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Auftrag activation failed. Id {AuftragId}. HTTP {Status} POST {Path}. {Body}",
+                    auftragId,
+                    (int)response.StatusCode,
+                    path,
+                    Trim(text));
+                return Fail(response.StatusCode, path, text, "ArianaLab hat die Aktivierung abgelehnt.") with
+                {
+                    AuftragNummer = auftragId
+                };
+            }
+
+            var node = ParseObject(text);
+            if (node is null || !ReadBool(node["IsSuccess"]))
+            {
+                var message = node is null
+                    ? "ArianaLab hat die Aktivierung abgelehnt."
+                    : ReadActivationError(node) ?? ExtractApiError(text) ?? "ArianaLab hat die Aktivierung abgelehnt.";
+                _logger.LogError(
+                    "Auftrag activation failed. Id {AuftragId}. POST {Path}. {Message}. {Body}",
+                    auftragId,
+                    path,
+                    message,
+                    Trim(text));
+                return new AuftragCreateResult(
+                    false,
+                    message,
+                    $"HTTP {(int)response.StatusCode} POST {path}: {Trim(text)}",
+                    auftragId,
+                    HttpStatus: (int)response.StatusCode);
+            }
+
+            var probenNummer = ReadProbenNummern(node["SuccessValue"] as JsonObject);
+            _logger.LogInformation(
+                "Auftrag activated. Id {AuftragId}. Probe {ProbenNummer}. HTTP {Status} POST {Path}",
+                auftragId,
+                string.IsNullOrWhiteSpace(probenNummer) ? "(none)" : probenNummer,
+                (int)response.StatusCode,
+                path);
+            var successMessage = string.IsNullOrWhiteSpace(probenNummer)
+                ? "Auftrag wurde in ArianaLab aktiviert."
+                : $"Probe {probenNummer} wurde in ArianaLab angelegt.";
+            return new AuftragCreateResult(
+                true,
+                successMessage,
+                $"HTTP {(int)response.StatusCode} POST {path}: {Trim(text)}",
+                auftragId,
+                probenNummer,
+                (int)response.StatusCode,
+                IsActivated: true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Auftrag activation failed. Id {AuftragId}. ArianaLab is unreachable", auftragId);
+            return new AuftragCreateResult(
+                false,
+                "ArianaLab ist nicht erreichbar.",
+                ex.Message,
+                auftragId,
+                HttpStatus: 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Auftrag activation failed. Id {AuftragId}", auftragId);
+            return new AuftragCreateResult(
+                false,
+                "ArianaLab ist nicht erreichbar.",
+                ex.Message,
+                auftragId);
+        }
+    }
+
     public Task<string?> DiscoverCreatePathAsync(CancellationToken cancellationToken) =>
         Task.FromResult<string?>(string.IsNullOrWhiteSpace(_options.CreatePath)
             ? DefaultCreatePath
@@ -211,18 +311,25 @@ public sealed class ArianaLabClient : IArianaLabClient
             }
 
             var id = ReadId(auftrag);
+            var probenNummer = ReadProbenNummern(auftrag);
+            var isActivated = IsActivatedAuftrag(auftrag, probenNummer);
             _logger.LogWarning(
-                "Auftrag already exists. Id {AuftragId}. Protocol {ProtocolId}",
+                "Auftrag already exists. Id {AuftragId}. Protocol {ProtocolId}. Status {Status}. Probe {ProbenNummer}",
                 string.IsNullOrWhiteSpace(id) ? "(none)" : id,
-                protocolId);
+                protocolId,
+                ReadString(auftrag["Status"]) ?? "(none)",
+                string.IsNullOrWhiteSpace(probenNummer) ? "(none)" : probenNummer);
+            var message = ExistingAuftragMessage(isActivated, probenNummer);
             return new AuftragCreateResult(
                 false,
-                "Für dieses Tag existiert bereits ein Auftrag.",
+                message,
                 string.IsNullOrWhiteSpace(id)
                     ? $"Existing Auftrag matched {ProtocolAttributeName}={protocolId}."
                     : $"Existing Auftrag {id} matched {ProtocolAttributeName}={protocolId}.",
                 id,
-                AlreadyExists: true);
+                probenNummer,
+                AlreadyExists: true,
+                IsActivated: isActivated);
         }
 
         return null;
@@ -291,7 +398,7 @@ public sealed class ArianaLabClient : IArianaLabClient
 
         var listText = await listResponse.Content.ReadAsStringAsync(cancellationToken);
         var list = ParseObject(listText);
-        var first = list?["_embedded"] is JsonArray embedded && embedded.Count > 0
+        var first = list?["_embedded"] is JsonArray { Count: > 0 } embedded
             ? embedded[0] as JsonObject
             : null;
         if (first is null)
@@ -349,6 +456,115 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
     }
 
+    private static string ExistingAuftragMessage(bool isActivated, string? probenNummer)
+    {
+        if (!isActivated)
+        {
+            return "Für dieses Tag existiert bereits ein Auftrag.";
+        }
+
+        return string.IsNullOrWhiteSpace(probenNummer)
+            ? "Für dieses Tag existiert bereits eine Probe."
+            : $"Für dieses Tag existiert bereits die Probe {probenNummer}.";
+    }
+
+    private static bool IsActivatedAuftrag(JsonObject auftrag, string? probenNummer) =>
+        string.Equals(ReadString(auftrag["Status"]), "aktiviert", StringComparison.OrdinalIgnoreCase) ||
+        !string.IsNullOrWhiteSpace(probenNummer);
+
+    private static string? ReadProbenNummern(JsonObject? auftrag)
+    {
+        if (auftrag?["Proben"] is not JsonArray proben)
+        {
+            return null;
+        }
+
+        var numbers = new List<string>();
+        foreach (var item in proben)
+        {
+            if (item is not JsonObject probe)
+            {
+                continue;
+            }
+
+            var number = ReadString(probe["Tagebuchnummer"]);
+            if (!string.IsNullOrWhiteSpace(number))
+            {
+                numbers.Add(number);
+            }
+        }
+
+        return numbers.Count == 0 ? null : string.Join(", ", numbers);
+    }
+
+    private static string? ReadActivationError(JsonObject node)
+    {
+        if (node["ErrorValue"] is not JsonObject error)
+        {
+            return null;
+        }
+
+        var message = ReadString(error["Message"]);
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            return message;
+        }
+
+        return ReadLivecheckMessages(error["Probenvorschau"]);
+    }
+
+    private static string? ReadLivecheckMessages(JsonNode? vorschau)
+    {
+        if (vorschau is not JsonArray items || items.Count == 0)
+        {
+            return null;
+        }
+
+        var messages = new List<string>();
+        foreach (var item in items)
+        {
+            if (item is not JsonObject preview || preview["LivecheckResults"] is not JsonArray results)
+            {
+                continue;
+            }
+
+            foreach (var resultNode in results)
+            {
+                if (resultNode is not JsonObject result || IsOkLivecheck(result["Result"]))
+                {
+                    continue;
+                }
+
+                var text = ReadString(result["Message"]);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    messages.Add(text);
+                }
+            }
+        }
+
+        return messages.Count == 0 ? "Es gibt fehlschlagende Livechecks" : string.Join(" ", messages.Distinct());
+    }
+
+    private static bool IsOkLivecheck(JsonNode? node) =>
+        string.Equals(ReadString(node), "OK", StringComparison.OrdinalIgnoreCase) ||
+        (node is JsonValue value && value.TryGetValue<int>(out var number) && number == 0);
+
+    private static bool ReadBool(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<bool>(out var flag) && flag;
+
+    private static string? ReadString(JsonNode? node)
+    {
+        if (node is null or JsonObject or JsonArray)
+        {
+            return null;
+        }
+
+        return node is JsonValue value && value.TryGetValue<string>(out var text)
+            ? text
+            : node.ToString();
+    }
+
     private static string? ReadId(JsonObject? node)
     {
         if (node is null)
@@ -356,9 +572,9 @@ public sealed class ArianaLabClient : IArianaLabClient
             return null;
         }
 
-        return node["_id"]?.ToString()
-               ?? node["Id"]?.ToString()
-               ?? node["id"]?.ToString();
+        return ReadString(node["_id"])
+               ?? ReadString(node["Id"])
+               ?? ReadString(node["id"]);
     }
 
     private static string? FindLink(JsonObject? node, string rel)
