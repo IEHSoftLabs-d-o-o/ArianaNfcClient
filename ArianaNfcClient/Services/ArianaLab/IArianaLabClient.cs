@@ -9,4 +9,6 @@ public interface IArianaLabClient
     Task<AuftragCreateResult> CreateAuftragAsync(NfcTagPayload payload, string jsonText, CancellationToken cancellationToken);
 
     Task<AuftragCreateResult> ActivateAuftragAsync(string auftragId, CancellationToken cancellationToken);
+
+    Task<bool> DeleteAuftragAsync(string auftragId, CancellationToken cancellationToken);
 }

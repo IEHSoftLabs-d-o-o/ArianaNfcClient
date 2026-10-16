@@ -186,6 +186,7 @@ public partial class App
         options.Username = connection.Username;
         options.Password = connection.Password;
         options.AutoActivateAuftrag = connection.AutoActivateAuftrag;
+        options.DeleteAuftragOnActivationFailure = connection.DeleteAuftragOnActivationFailure;
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

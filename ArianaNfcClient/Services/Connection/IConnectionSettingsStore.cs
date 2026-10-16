@@ -11,4 +11,5 @@ public sealed record ConnectionSettings(
     string BaseUrl,
     string Username,
     string Password,
-    bool AutoActivateAuftrag = true);
+    bool AutoActivateAuftrag = true,
+    bool DeleteAuftragOnActivationFailure = true);

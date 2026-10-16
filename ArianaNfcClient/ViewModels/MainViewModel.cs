@@ -69,16 +69,32 @@ public partial class MainViewModel : ObservableObject
     private string _lastUid = "–";
 
     public ConnectionSettings GetConnection() =>
-        new(_options.BaseUrl, _options.Username, _options.Password, _options.AutoActivateAuftrag);
+        new(
+            _options.BaseUrl,
+            _options.Username,
+            _options.Password,
+            _options.AutoActivateAuftrag,
+            _options.DeleteAuftragOnActivationFailure);
 
-    public void SaveConnection(string baseUrl, string username, string password, bool autoActivateAuftrag)
+    public void SaveConnection(
+        string baseUrl,
+        string username,
+        string password,
+        bool autoActivateAuftrag,
+        bool deleteAuftragOnActivationFailure)
     {
-        var settings = new ConnectionSettings(baseUrl.Trim(), username.Trim(), password, autoActivateAuftrag);
+        var settings = new ConnectionSettings(
+            baseUrl.Trim(),
+            username.Trim(),
+            password,
+            autoActivateAuftrag,
+            deleteAuftragOnActivationFailure);
         _connectionSettings.Save(settings);
         _options.BaseUrl = settings.BaseUrl;
         _options.Username = settings.Username;
         _options.Password = settings.Password;
         _options.AutoActivateAuftrag = settings.AutoActivateAuftrag;
+        _options.DeleteAuftragOnActivationFailure = settings.DeleteAuftragOnActivationFailure;
         _arianaLabClient.ApplyConnection();
         ShowConnection();
     }
@@ -223,6 +239,14 @@ public partial class MainViewModel : ObservableObject
             await Dispatcher.Yield();
             result = await _arianaLabClient.ActivateAuftragAsync(result.AuftragNummer!, cancellationToken);
             activated = true;
+        }
+
+        if (activated &&
+            !result.Succeeded &&
+            _options.DeleteAuftragOnActivationFailure &&
+            !string.IsNullOrWhiteSpace(result.AuftragNummer))
+        {
+            await _arianaLabClient.DeleteAuftragAsync(result.AuftragNummer, cancellationToken);
         }
 
         if (!activated && result.AlreadyExists)

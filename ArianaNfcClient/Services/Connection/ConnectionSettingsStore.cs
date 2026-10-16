@@ -29,7 +29,8 @@ public sealed class ConnectionSettingsStore(ILogger<ConnectionSettingsStore> log
                 stored.BaseUrl ?? string.Empty,
                 stored.Username ?? string.Empty,
                 Unprotect(stored.PasswordProtected),
-                stored.AutoActivateAuftrag ?? true);
+                stored.AutoActivateAuftrag ?? true,
+                stored.DeleteAuftragOnActivationFailure ?? true);
         }
         catch (Exception ex) when (ex is JsonException or IOException or CryptographicException)
         {
@@ -51,7 +52,8 @@ public sealed class ConnectionSettingsStore(ILogger<ConnectionSettingsStore> log
             BaseUrl = settings.BaseUrl,
             Username = settings.Username,
             PasswordProtected = Protect(settings.Password),
-            AutoActivateAuftrag = settings.AutoActivateAuftrag
+            AutoActivateAuftrag = settings.AutoActivateAuftrag,
+            DeleteAuftragOnActivationFailure = settings.DeleteAuftragOnActivationFailure
         };
         File.WriteAllText(FilePath, JsonSerializer.Serialize(stored, JsonOptions));
         logger.LogInformation("Connection settings saved");
@@ -100,5 +102,7 @@ public sealed class ConnectionSettingsStore(ILogger<ConnectionSettingsStore> log
         public string? PasswordProtected { get; init; }
 
         public bool? AutoActivateAuftrag { get; init; }
+
+        public bool? DeleteAuftragOnActivationFailure { get; init; }
     }
 }

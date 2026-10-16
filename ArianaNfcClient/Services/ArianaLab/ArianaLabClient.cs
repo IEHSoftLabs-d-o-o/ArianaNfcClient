@@ -241,6 +241,57 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
     }
 
+    public async Task<bool> DeleteAuftragAsync(string auftragId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(auftragId))
+        {
+            _logger.LogError("Auftrag delete failed. Auftrag id is missing");
+            return false;
+        }
+
+        var createPath = string.IsNullOrWhiteSpace(_options.CreatePath)
+            ? DefaultCreatePath
+            : _options.CreatePath;
+        var path = $"{createPath.TrimEnd('/')}/{Uri.EscapeDataString(auftragId)}";
+
+        try
+        {
+            using var response = await _httpClient.DeleteAsync(path, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var text = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Auftrag delete failed. Id {AuftragId}. HTTP {Status} DELETE {Path}. {Body}",
+                    auftragId,
+                    (int)response.StatusCode,
+                    path,
+                    Trim(text));
+                return false;
+            }
+
+            _logger.LogInformation(
+                "Auftrag deleted. Id {AuftragId}. HTTP {Status} DELETE {Path}",
+                auftragId,
+                (int)response.StatusCode,
+                path);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Auftrag delete failed. Id {AuftragId}. ArianaLab is unreachable", auftragId);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Auftrag delete failed. Id {AuftragId}", auftragId);
+            return false;
+        }
+    }
+
     public Task<string?> DiscoverCreatePathAsync(CancellationToken cancellationToken) =>
         Task.FromResult<string?>(string.IsNullOrWhiteSpace(_options.CreatePath)
             ? DefaultCreatePath

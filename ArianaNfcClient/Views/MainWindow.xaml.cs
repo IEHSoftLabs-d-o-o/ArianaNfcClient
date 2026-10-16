@@ -39,7 +39,8 @@ public partial class MainWindow
             current.BaseUrl,
             current.Username,
             current.Password,
-            current.AutoActivateAuftrag)
+            current.AutoActivateAuftrag,
+            current.DeleteAuftragOnActivationFailure)
         {
             Owner = this
         };
@@ -49,7 +50,8 @@ public partial class MainWindow
                 dialog.BaseUrl,
                 dialog.Username,
                 dialog.Password,
-                dialog.AutoActivateAuftrag);
+                dialog.AutoActivateAuftrag,
+                dialog.DeleteAuftragOnActivationFailure);
         }
     }
 

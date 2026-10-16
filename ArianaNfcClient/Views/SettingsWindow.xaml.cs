@@ -12,18 +12,26 @@ public partial class SettingsWindow
     private readonly string _originalUsername;
     private readonly string _originalPassword;
     private readonly bool _originalAutoActivateAuftrag;
+    private readonly bool _originalDeleteAuftragOnActivationFailure;
 
-    public SettingsWindow(string baseUrl, string username, string password, bool autoActivateAuftrag)
+    public SettingsWindow(
+        string baseUrl,
+        string username,
+        string password,
+        bool autoActivateAuftrag,
+        bool deleteAuftragOnActivationFailure)
     {
         InitializeComponent();
         _originalBaseUrl = baseUrl;
         _originalUsername = username;
         _originalPassword = password;
         _originalAutoActivateAuftrag = autoActivateAuftrag;
+        _originalDeleteAuftragOnActivationFailure = deleteAuftragOnActivationFailure;
         BaseUrlBox.Text = baseUrl;
         UsernameBox.Text = username;
         PasswordBox.Password = password;
         AutoActivateBox.IsChecked = autoActivateAuftrag;
+        DeleteOnActivationFailureBox.IsChecked = deleteAuftragOnActivationFailure;
         UpdateSaveEnabled();
     }
 
@@ -34,6 +42,8 @@ public partial class SettingsWindow
     public string Password { get; private set; } = string.Empty;
 
     public bool AutoActivateAuftrag { get; private set; } = true;
+
+    public bool DeleteAuftragOnActivationFailure { get; private set; } = true;
 
     private void Setting_OnChanged(object sender, RoutedEventArgs e)
     {
@@ -51,7 +61,8 @@ public partial class SettingsWindow
             BaseUrlBox.Text != _originalBaseUrl ||
             UsernameBox.Text != _originalUsername ||
             PasswordBox.Password != _originalPassword ||
-            AutoActivateBox.IsChecked != _originalAutoActivateAuftrag;
+            AutoActivateBox.IsChecked != _originalAutoActivateAuftrag ||
+            DeleteOnActivationFailureBox.IsChecked != _originalDeleteAuftragOnActivationFailure;
     }
 
     private void SaveButton_OnClick(object sender, RoutedEventArgs e)
@@ -74,6 +85,7 @@ public partial class SettingsWindow
         Username = UsernameBox.Text.Trim();
         Password = PasswordBox.Password;
         AutoActivateAuftrag = AutoActivateBox.IsChecked == true;
+        DeleteAuftragOnActivationFailure = DeleteOnActivationFailureBox.IsChecked == true;
         DialogResult = true;
     }
 
