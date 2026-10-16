@@ -30,7 +30,7 @@ public sealed class ConnectionSettingsStore(ILogger<ConnectionSettingsStore> log
                 stored.Username ?? string.Empty,
                 Unprotect(stored.PasswordProtected),
                 stored.AutoActivateAuftrag ?? true,
-                stored.DeleteAuftragOnActivationFailure ?? true);
+                stored.DeleteAuftragOnActivationFailure ?? false);
         }
         catch (Exception ex) when (ex is JsonException or IOException or CryptographicException)
         {

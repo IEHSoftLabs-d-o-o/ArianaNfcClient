@@ -8,7 +8,7 @@ public sealed class ArianaLabOptions
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public bool AutoActivateAuftrag { get; set; } = true;
-    public bool DeleteAuftragOnActivationFailure { get; set; } = true;
+    public bool DeleteAuftragOnActivationFailure { get; set; } = false;
     public string CreatePath { get; set; } = string.Empty;
     public string ProtocolAttributeName { get; set; } = DefaultProtocolAttributeName;
 

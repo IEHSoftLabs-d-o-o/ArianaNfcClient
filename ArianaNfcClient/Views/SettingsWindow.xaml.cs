@@ -43,7 +43,7 @@ public partial class SettingsWindow
 
     public bool AutoActivateAuftrag { get; private set; } = true;
 
-    public bool DeleteAuftragOnActivationFailure { get; private set; } = true;
+    public bool DeleteAuftragOnActivationFailure { get; private set; } = false;
 
     private void Setting_OnChanged(object sender, RoutedEventArgs e)
     {

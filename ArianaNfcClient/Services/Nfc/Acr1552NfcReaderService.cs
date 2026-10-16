@@ -75,6 +75,7 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             monitor = null;
         }
 
+        Task<bool>? pendingRead = null;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -114,8 +115,30 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
                     }
                 }
 
+                pendingRead ??= channel.Reader.WaitToReadAsync(cancellationToken).AsTask();
                 var wait = currentReader is null ? TimeSpan.FromSeconds(2) : TimeSpan.FromMilliseconds(400);
-                foreach (var evt in await ReadEventsUntilDeviceChangeAsync(channel, wait, cancellationToken))
+                var events = await ReadEventsUntilDeviceChangeAsync(channel, pendingRead, wait, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || pendingRead.IsCanceled)
+                {
+                    break;
+                }
+
+                if (pendingRead.IsFaulted)
+                {
+                    await pendingRead;
+                }
+
+                if (pendingRead.IsCompletedSuccessfully)
+                {
+                    if (!pendingRead.Result)
+                    {
+                        break;
+                    }
+
+                    pendingRead = null;
+                }
+
+                foreach (var evt in events)
                 {
                     yield return evt;
                 }
@@ -175,36 +198,35 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
 
     private async Task<List<NfcReaderEvent>> ReadEventsUntilDeviceChangeAsync(
         Channel<NfcReaderEvent> channel,
+        Task<bool> pendingRead,
         TimeSpan wait,
         CancellationToken cancellationToken)
     {
-        using var done = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        done.CancelAfter(wait);
-        var deviceChange = Task.Run(() =>
-        {
-            if (WaitForReaderChange(wait, done.Token))
-            {
-                try
-                {
-                    done.Cancel();
-                }
-                catch (ObjectDisposedException)
-                {
-                    // the wait already finished
-                }
-            }
-        }, CancellationToken.None);
-
-        List<NfcReaderEvent> events;
+        using var readerChangeCancel = new CancellationTokenSource();
+        var deviceChange = Task.Run(
+            () => WaitForReaderChange(wait, readerChangeCancel.Token),
+            CancellationToken.None);
+        var delay = Task.Delay(wait);
+        var events = new List<NfcReaderEvent>();
         try
         {
-            events = await ReadEventsAsync(channel, done.Token, cancellationToken);
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.WhenAny(pendingRead, deviceChange, delay);
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    while (channel.Reader.TryRead(out var evt))
+                    {
+                        events.Add(evt);
+                    }
+                }
+            }
         }
         finally
         {
             try
             {
-                done.Cancel();
+                readerChangeCancel.Cancel();
             }
             catch (ObjectDisposedException)
             {
@@ -277,33 +299,6 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             _logger.LogDebug(ex, "PC/SC reader change wait failed");
             return false;
         }
-    }
-
-    private static async Task<List<NfcReaderEvent>> ReadEventsAsync(
-        Channel<NfcReaderEvent> channel,
-        CancellationToken waitToken,
-        CancellationToken cancellationToken)
-    {
-        var events = new List<NfcReaderEvent>();
-        try
-        {
-            while (await channel.Reader.WaitToReadAsync(waitToken))
-            {
-                while (channel.Reader.TryRead(out var evt))
-                {
-                    events.Add(evt);
-                }
-            }
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            while (channel.Reader.TryRead(out var evt))
-            {
-                events.Add(evt);
-            }
-        }
-
-        return events;
     }
 
     private static void DisposeMonitor(ISCardMonitor monitor)

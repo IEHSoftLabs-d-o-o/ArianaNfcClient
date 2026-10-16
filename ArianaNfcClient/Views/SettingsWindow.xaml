@@ -70,7 +70,8 @@
                   Margin="0,10,0,0"
                   Content="Auftrag löschen, wenn Aktivierung fehlschlägt"
                   Foreground="#212529"
-                  IsChecked="True"
+                  IsChecked="False"
+                  Visibility="Collapsed"
                   Checked="Setting_OnChanged"
                   Unchecked="Setting_OnChanged" />
 
