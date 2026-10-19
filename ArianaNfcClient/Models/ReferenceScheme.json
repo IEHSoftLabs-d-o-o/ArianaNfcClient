@@ -80,8 +80,7 @@
       "properties": {
         "Chemie": { "type": "integer" },
         "Mikrobiologie": { "type": "integer" },
-        "Ph": { "type": "integer" },
-        "Leitfaehigkeit": { "type": "integer" }
+        "PhLeitfaehigkeit": { "type": "integer" }
       }
     },
     "Analysen": {

@@ -142,11 +142,8 @@ public sealed class FlaschenPayload
     [JsonPropertyName("Mikrobiologie")]
     public int? Mikrobiologie { get; set; }
 
-    [JsonPropertyName("Ph")]
-    public int? Ph { get; set; }
-
-    [JsonPropertyName("Leitfaehigkeit")]
-    public int? Leitfaehigkeit { get; set; }
+    [JsonPropertyName("PhLeitfaehigkeit")]
+    public int? PhLeitfaehigkeit { get; set; }
 }
 
 public sealed class ExtraTextePayload
