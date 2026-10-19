@@ -28,8 +28,18 @@ public partial class MainWindow
 
         _viewModel = viewModel;
         DataContext = viewModel;
+        viewModel.SetActivationFailedHandler(ShowActivationFailed);
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += (_, _) => viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+
+    private void ShowActivationFailed(string message, string? auftragUrl)
+    {
+        var dialog = new ActivationFailedWindow(message, auftragUrl)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
     }
 
     private void SettingsButton_OnClick(object sender, RoutedEventArgs e)

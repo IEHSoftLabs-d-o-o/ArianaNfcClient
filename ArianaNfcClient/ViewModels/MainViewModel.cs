@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableObject
     private bool _waitingForRemoval;
     private DateTime? _resultShownUtc;
     private long _statusVersion;
+    private Action<string, string?>? _showActivationFailed;
 
     public MainViewModel(
         ITagPayloadValidator validator,
@@ -40,6 +41,9 @@ public partial class MainViewModel : ObservableObject
         Status = "Warten auf NFC-Tag…";
         ResultMessage = "Legen Sie einen NFC-Tag auf den Leser.";
     }
+
+    public void SetActivationFailedHandler(Action<string, string?> handler) =>
+        _showActivationFailed = handler;
 
     [ObservableProperty]
     private string _baseUrl = "–";
@@ -308,13 +312,33 @@ public partial class MainViewModel : ObservableObject
             SuccessStatus(result.Succeeded, activated, result.ProbenNummer),
             result.Message,
             result.TechnicalDetails);
+
+        if (activated && !result.Succeeded)
+        {
+            var auftragUrl = BuildAuftragUrl(result.AuftragNummer);
+            _showActivationFailed?.Invoke(result.Message, auftragUrl);
+        }
+    }
+
+    private string? BuildAuftragUrl(string? auftragId)
+    {
+        if (string.IsNullOrWhiteSpace(auftragId) ||
+            string.IsNullOrWhiteSpace(_options.BaseUrl) ||
+            !Uri.TryCreate(_options.BaseUrl.Trim().TrimEnd('/'), UriKind.Absolute, out var baseAddress) ||
+            (baseAddress.Scheme != Uri.UriSchemeHttp && baseAddress.Scheme != Uri.UriSchemeHttps))
+        {
+            return null;
+        }
+
+        return $"{baseAddress.AbsoluteUri.TrimEnd('/')}/Opd/Probenanlage/Auftraege/{Uri.EscapeDataString(auftragId)}";
     }
 
     private bool ShouldActivate(AuftragCreateResult result) =>
         _options.AutoActivateAuftrag &&
+        result.Succeeded &&
+        !result.AlreadyExists &&
         !result.IsActivated &&
-        !string.IsNullOrWhiteSpace(result.AuftragNummer) &&
-        (result.Succeeded || result.AlreadyExists);
+        !string.IsNullOrWhiteSpace(result.AuftragNummer);
 
     private static string SuccessStatus(bool succeeded, bool activated, string? probenNummer)
     {

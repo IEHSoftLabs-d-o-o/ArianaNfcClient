@@ -1,0 +1,61 @@
+<Window x:Class="ArianaNfcClient.Views.ActivationFailedWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Aktivierung fehlgeschlagen"
+        Width="480"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#F8F9FA"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        Closing="Window_OnClosing">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Der Auftrag konnte nicht zu einer Probe aktiviert werden."
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="#1B2A4A"
+                   TextWrapping="Wrap" />
+
+        <TextBlock x:Name="MessageText"
+                   Grid.Row="1"
+                   Margin="0,12,0,0"
+                   Foreground="#212529"
+                   TextWrapping="Wrap" />
+
+        <TextBlock x:Name="LinkPanel"
+                   Grid.Row="2"
+                   Margin="0,16,0,0"
+                   Visibility="Collapsed">
+            <Hyperlink x:Name="AuftragLink"
+                       RequestNavigate="AuftragLink_OnRequestNavigate">
+                Auftrag in ArianaLab öffnen
+            </Hyperlink>
+        </TextBlock>
+
+        <Button Grid.Row="3"
+                Margin="0,24,0,0"
+                Width="110"
+                Height="32"
+                HorizontalAlignment="Center"
+                Content="OK"
+                IsDefault="True"
+                Click="OkButton_OnClick">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#2A3E91" />
+                    <Setter Property="Foreground" Value="#FFFFFF" />
+                    <Setter Property="BorderBrush" Value="#2A3E91" />
+                </Style>
+            </Button.Style>
+        </Button>
+    </Grid>
+</Window>
