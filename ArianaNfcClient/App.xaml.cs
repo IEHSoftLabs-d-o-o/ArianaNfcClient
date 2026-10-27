@@ -15,6 +15,7 @@ using NLog;
 using NLog.Extensions.Hosting;
 using Microsoft.Win32;
 using System.IO;
+using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
@@ -63,6 +64,10 @@ public partial class App
                         services.AddHttpClient<IArianaLabClient, ArianaLabClient>(client =>
                         {
                             client.Timeout = TimeSpan.FromSeconds(30);
+                        })
+                        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                        {
+                            AllowAutoRedirect = false
                         });
                         services.AddSingleton<MainViewModel>();
                         services.AddSingleton<MainWindow>();

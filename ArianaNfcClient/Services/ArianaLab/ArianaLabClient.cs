@@ -14,10 +14,15 @@ namespace ArianaNfcClient.Services.ArianaLab;
 public sealed class ArianaLabClient : IArianaLabClient
 {
     public const string DefaultCreatePath = "/Rest/Opd/Probenanlage/Auftraege";
+    private const int MaxOriginRedirectHops = 5;
 
     private readonly HttpClient _httpClient;
     private readonly ArianaLabOptions _options;
     private readonly ILogger<ArianaLabClient> _logger;
+    private Uri? _configuredBaseAddress;
+    private Uri? _redirectedOrigin;
+
+    public Uri? EffectiveBaseAddress => _redirectedOrigin ?? _configuredBaseAddress;
 
     public ArianaLabClient(
         HttpClient httpClient,
@@ -35,14 +40,25 @@ public sealed class ArianaLabClient : IArianaLabClient
 
     public void ApplyConnection()
     {
+        _redirectedOrigin = null;
         if (string.IsNullOrWhiteSpace(_options.BaseUrl) ||
             !Uri.TryCreate(EnsureTrailingSlash(_options.BaseUrl.Trim()), UriKind.Absolute, out var baseAddress))
         {
+            _configuredBaseAddress = null;
             _httpClient.BaseAddress = null;
         }
         else
         {
-            _httpClient.BaseAddress = baseAddress;
+            _configuredBaseAddress = baseAddress;
+            // HttpClient.BaseAddress cannot change after the first request; keep a local copy for redirects.
+            try
+            {
+                _httpClient.BaseAddress = baseAddress;
+            }
+            catch (InvalidOperationException)
+            {
+                // Already sent requests; absolute URIs from ResolveRequestUri still work.
+            }
         }
 
         if (string.IsNullOrWhiteSpace(_options.Username))
@@ -52,7 +68,8 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
 
         var raw = $"{_options.Username}:{_options.Password}";
-        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+        // Klims BasicAuthenticationHandler decodes as Windows-1252; Latin-1 matches Western European passwords.
+        var token = Convert.ToBase64String(Encoding.Latin1.GetBytes(raw));
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", token);
     }
 
@@ -104,6 +121,14 @@ public sealed class ArianaLabClient : IArianaLabClient
                     createPath,
                     Trim(createdText));
                 return Fail(created.StatusCode, createPath, createdText, "ArianaLab hat den Auftrag abgelehnt.");
+            }
+
+            if (LooksLikeLoginPage(createdText))
+            {
+                _logger.LogError(
+                    "Auftrag creation failed. Login page from POST {Path}",
+                    createPath);
+                return LoginFailed(created.StatusCode, $"POST {createPath}", createdText);
             }
 
             var createdNode = ParseObject(createdText);
@@ -161,7 +186,11 @@ public sealed class ArianaLabClient : IArianaLabClient
 
         try
         {
-            using var response = await _httpClient.PostAsync(path, content: null, cancellationToken);
+            using var response = await SendWithOriginRedirectAsync(
+                HttpMethod.Post,
+                path,
+                contentFactory: null,
+                cancellationToken);
             var text = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
@@ -172,6 +201,18 @@ public sealed class ArianaLabClient : IArianaLabClient
                     path,
                     Trim(text));
                 return Fail(response.StatusCode, path, text, "ArianaLab hat die Aktivierung abgelehnt.") with
+                {
+                    AuftragNummer = auftragId
+                };
+            }
+
+            if (LooksLikeLoginPage(text))
+            {
+                _logger.LogError(
+                    "Auftrag activation failed. Id {AuftragId}. Login page from POST {Path}",
+                    auftragId,
+                    path);
+                return LoginFailed(response.StatusCode, $"POST {path}", text) with
                 {
                     AuftragNummer = auftragId
                 };
@@ -256,7 +297,11 @@ public sealed class ArianaLabClient : IArianaLabClient
 
         try
         {
-            using var response = await _httpClient.DeleteAsync(path, cancellationToken);
+            using var response = await SendWithOriginRedirectAsync(
+                HttpMethod.Delete,
+                path,
+                contentFactory: null,
+                cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var text = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -319,9 +364,21 @@ public sealed class ArianaLabClient : IArianaLabClient
         });
 
         var url = $"{createPath}?q={Uri.EscapeDataString(query)}";
-        using var response = await _httpClient.GetAsync(url, cancellationToken);
+        using var response = await SendWithOriginRedirectAsync(
+            HttpMethod.Get,
+            url,
+            contentFactory: null,
+            cancellationToken);
         var text = await response.Content.ReadAsStringAsync(cancellationToken);
         _logger.LogInformation("GET {Path} -> {Status}", createPath, (int)response.StatusCode);
+
+        if (LooksLikeLoginPage(text))
+        {
+            _logger.LogError(
+                "Auftrag creation failed. Existing-order lookup returned login page from GET {Path}",
+                createPath);
+            return LoginFailed(response.StatusCode, $"GET {url}", text);
+        }
 
         if (!response.IsSuccessStatusCode)
         {
@@ -440,7 +497,11 @@ public sealed class ArianaLabClient : IArianaLabClient
         });
 
         var url = $"/Rest/Opd/Probenanlage/Auftragsvorlagen?q={Uri.EscapeDataString(query)}";
-        using var listResponse = await _httpClient.GetAsync(url, cancellationToken);
+        using var listResponse = await SendWithOriginRedirectAsync(
+            HttpMethod.Get,
+            url,
+            contentFactory: null,
+            cancellationToken);
         if (!listResponse.IsSuccessStatusCode)
         {
             _logger.LogWarning("Auftragsvorlage lookup failed: HTTP {Status}", (int)listResponse.StatusCode);
@@ -448,6 +509,12 @@ public sealed class ArianaLabClient : IArianaLabClient
         }
 
         var listText = await listResponse.Content.ReadAsStringAsync(cancellationToken);
+        if (LooksLikeLoginPage(listText))
+        {
+            _logger.LogWarning("Auftragsvorlage lookup returned login page");
+            return null;
+        }
+
         var list = ParseObject(listText);
         var first = list?["_embedded"] is JsonArray { Count: > 0 } embedded
             ? embedded[0] as JsonObject
@@ -464,7 +531,11 @@ public sealed class ArianaLabClient : IArianaLabClient
             return first["Auftrag"] as JsonObject;
         }
 
-        using var effektiveResponse = await _httpClient.GetAsync(effektiveHref, cancellationToken);
+        using var effektiveResponse = await SendWithOriginRedirectAsync(
+            HttpMethod.Get,
+            effektiveHref,
+            contentFactory: null,
+            cancellationToken);
         if (!effektiveResponse.IsSuccessStatusCode)
         {
             _logger.LogWarning("Effektive Vorlage failed: HTTP {Status}", (int)effektiveResponse.StatusCode);
@@ -481,12 +552,124 @@ public sealed class ArianaLabClient : IArianaLabClient
         CancellationToken cancellationToken)
     {
         var json = body.ToJsonString(JsonUnicodeEscapes.RelaxedWriteCompact);
-        using var content = new StringContent(json, Encoding.UTF8, "application/json");
-        return await _httpClient.PostAsync(path, content, cancellationToken);
+        return await SendWithOriginRedirectAsync(
+            HttpMethod.Post,
+            path,
+            () => new StringContent(json, Encoding.UTF8, "application/json"),
+            cancellationToken);
     }
+
+    private async Task<HttpResponseMessage> SendWithOriginRedirectAsync(
+        HttpMethod method,
+        string pathAndQuery,
+        Func<HttpContent?>? contentFactory,
+        CancellationToken cancellationToken)
+    {
+        var requestUri = ResolveRequestUri(pathAndQuery)
+                         ?? throw new InvalidOperationException(
+                             "ArianaLab BaseUrl is not configured.");
+
+        for (var hop = 0; hop < MaxOriginRedirectHops; hop++)
+        {
+            using var request = new HttpRequestMessage(method, requestUri);
+            var content = contentFactory?.Invoke();
+            if (content is not null)
+            {
+                request.Content = content;
+            }
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!IsRedirectStatus(response.StatusCode))
+            {
+                return response;
+            }
+
+            var location = response.Headers.Location;
+            if (location is null)
+            {
+                return response;
+            }
+
+            var resolved = location.IsAbsoluteUri
+                ? location
+                : new Uri(requestUri, location);
+
+            if (!IsOriginOnlyRedirect(resolved))
+            {
+                return response;
+            }
+
+            response.Dispose();
+
+            var newOrigin = new UriBuilder(resolved.Scheme, resolved.Host, resolved.Port) { Path = "/" }.Uri;
+            _redirectedOrigin = newOrigin;
+            requestUri = new Uri(newOrigin, requestUri.PathAndQuery);
+            _logger.LogInformation(
+                "Replaying {Method} {Path} on redirected origin {Origin}",
+                method.Method,
+                requestUri.PathAndQuery,
+                newOrigin.AbsoluteUri.TrimEnd('/'));
+        }
+
+        throw new HttpRequestException(
+            $"ArianaLab origin redirect exceeded {MaxOriginRedirectHops} hops for {method} {pathAndQuery}.");
+    }
+
+    private Uri? ResolveRequestUri(string pathAndQuery)
+    {
+        if (Uri.TryCreate(pathAndQuery, UriKind.Absolute, out var absolute))
+        {
+            return absolute;
+        }
+
+        var origin = _redirectedOrigin ?? _configuredBaseAddress ?? _httpClient.BaseAddress;
+        return origin is null ? null : new Uri(origin, pathAndQuery);
+    }
+
+    private static bool IsRedirectStatus(HttpStatusCode status) =>
+        status is HttpStatusCode.MovedPermanently
+            or HttpStatusCode.Found
+            or HttpStatusCode.TemporaryRedirect
+            or HttpStatusCode.PermanentRedirect;
+
+    private static bool IsOriginOnlyRedirect(Uri location)
+    {
+        var path = location.AbsolutePath;
+        return string.IsNullOrEmpty(path) || path == "/";
+    }
+
+    private static bool LooksLikeLoginPage(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.AsSpan().TrimStart();
+        if (trimmed.StartsWith("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("<html", StringComparison.OrdinalIgnoreCase))
+        {
+            return text.Contains("Login", StringComparison.OrdinalIgnoreCase)
+                   || text.Contains("/Home/Login", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static AuftragCreateResult LoginFailed(HttpStatusCode status, string request, string body) =>
+        new(
+            false,
+            "Anmeldung bei ArianaLab fehlgeschlagen.",
+            $"HTTP {(int)status} from {request}: {Trim(body)}",
+            HttpStatus: (int)status);
 
     private static AuftragCreateResult Fail(HttpStatusCode status, string path, string body, string fallback)
     {
+        if (LooksLikeLoginPage(body))
+        {
+            return LoginFailed(status, $"POST {path}", body);
+        }
+
         var reason = ExtractApiError(body) ?? fallback;
         return new AuftragCreateResult(
             false,

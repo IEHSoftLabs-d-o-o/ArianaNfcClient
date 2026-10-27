@@ -4,6 +4,8 @@ namespace ArianaNfcClient.Services.ArianaLab;
 
 public interface IArianaLabClient
 {
+    Uri? EffectiveBaseAddress { get; }
+
     void ApplyConnection();
 
     Task<AuftragCreateResult> CreateAuftragAsync(NfcTagPayload payload, string jsonText, CancellationToken cancellationToken);

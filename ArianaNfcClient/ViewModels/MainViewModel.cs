@@ -322,9 +322,9 @@ public partial class MainViewModel : ObservableObject
 
     private string? BuildAuftragUrl(string? auftragId)
     {
+        var baseAddress = _arianaLabClient.EffectiveBaseAddress;
         if (string.IsNullOrWhiteSpace(auftragId) ||
-            string.IsNullOrWhiteSpace(_options.BaseUrl) ||
-            !Uri.TryCreate(_options.BaseUrl.Trim().TrimEnd('/'), UriKind.Absolute, out var baseAddress) ||
+            baseAddress is null ||
             (baseAddress.Scheme != Uri.UriSchemeHttp && baseAddress.Scheme != Uri.UriSchemeHttps))
         {
             return null;
