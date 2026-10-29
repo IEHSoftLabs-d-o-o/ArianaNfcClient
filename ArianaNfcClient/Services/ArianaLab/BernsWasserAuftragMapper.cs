@@ -31,6 +31,22 @@ public static class BernsWasserAuftragMapper
         ("Extra4", p => p.ExtraTexte?.Extra4)
     ];
 
+    // A leading '.' is removed when the order is activated and keeps the Zusatzfeld off the Prüfbericht.
+    private static readonly HashSet<string> NotPrintedOnReport = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Probenahmegebühr",
+        "Probenahmegebühr über Labor",
+        "Datum der Unterschrift",
+        "Aufbereitung",
+        "TeisKreisNummer",
+        "Weitergabe",
+        "Anzahl Flaschen Chemie",
+        "Anzahl Flaschen Mikrobiologie",
+        "Anzahl Flaschen PH / Leitfähigkeit",
+        "Prüfbericht an",
+        "Kostenträger"
+    };
+
     public static JsonObject Map(
         NfcTagPayload payload,
         JsonObject? templateAuftrag,
@@ -48,7 +64,7 @@ public static class BernsWasserAuftragMapper
         SetKunde(auftrag, payload.Kunde);
         SetString(auftrag, "Auftragsvorlage", payload.Auftragsvorlage?.Name);
         SetString(auftrag, "Probenehmer", payload.Probenehmer?.Bezeichnung);
-        SetString(auftrag, "Probenbezeichnung", payload.Entnahme?.Stelle);
+        SetString(auftrag, "Probenbezeichnung", FormatEntnahmestelle(payload.Entnahme));
         SetString(auftrag, "Eingangstemperatur", payload.Beschaffenheit?.Temperatur?.ToString(CultureInfo.InvariantCulture));
 
         if (DateTimeOffset.TryParse(payload.Entnahme?.Zeitpunkt, out var entnahme))
@@ -69,18 +85,23 @@ public static class BernsWasserAuftragMapper
 
         RemoveAttributes(attributes, SensoryAttributeNames);
         SetProbenahmeort(attributes, payload.Entnahme?.Stelle);
-        SetNamedAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebühr", "Probenahmegebuehr");
-        SetNamedAttribute(
+        SetHiddenReportAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebuehr");
+        SetHiddenReportAttribute(
             attributes,
             "Probenahmegebühr über Labor",
             FormatBool(payload.Bericht?.ProbenahmegebuehrUeberLabor),
-            "Probenahmegebühr über Labor",
             "ProbenahmegebuehrUeberLabor");
-        SetNamedAttribute(attributes, "Datum der Unterschrift", FormatGermanDate(payload.Bericht?.UnterschriftDatum), "Datum der Unterschrift", "UnterschriftDatum");
+        SetHiddenReportAttribute(attributes, "Datum der Unterschrift", FormatGermanDate(payload.Bericht?.UnterschriftDatum), "UnterschriftDatum");
 
         foreach (var (name, getter) in AttributeMappings)
         {
             var value = getter(payload);
+            if (NotPrintedOnReport.Contains(name))
+            {
+                SetHiddenReportAttribute(attributes, name, value);
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(value))
             {
                 UpsertAttribute(attributes, name, value);
@@ -95,6 +116,7 @@ public static class BernsWasserAuftragMapper
             UpsertAttribute(attributes, protocolName, payload.Protokoll.Id);
         }
 
+        SetProbenartFromProduktklasse(auftrag, attributes);
         FilterAnalysen(auftrag, payload.Analysen);
         EnsureAnalysenFromTag(auftrag, payload.Analysen);
         RenameExtraAnalysen(auftrag, payload.ExtraTexte);
@@ -297,8 +319,88 @@ public static class BernsWasserAuftragMapper
             name.Contains(w, StringComparison.OrdinalIgnoreCase) ||
             w.Contains(name, StringComparison.OrdinalIgnoreCase));
 
+    private static void SetProbenartFromProduktklasse(JsonObject auftrag, JsonArray attributes)
+    {
+        var probenart = LastProduktklasseChunk(ReadProduktklasse(auftrag));
+        if (string.IsNullOrWhiteSpace(probenart))
+        {
+            return;
+        }
+
+        // ".Probenart" is the Produktgruppe used for limit lookup. A missing group
+        // throws during activation, so the printed Probenart stays a separate attribute.
+        UpsertAttribute(attributes, "Probenart", probenart);
+    }
+
+    private static string? ReadProduktklasse(JsonObject auftrag)
+    {
+        var candidates = new List<string>();
+        Add(ReadProduktklasseValue(auftrag["Produktklasse"]));
+        if (auftrag["Positionen"] is JsonArray positionen)
+        {
+            foreach (var node in positionen)
+            {
+                if (node is JsonObject position)
+                {
+                    Add(ReadProduktklasseValue(position["Produktklasse"]));
+                }
+            }
+        }
+
+        return candidates
+            .OrderByDescending(path => path.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length)
+            .ThenByDescending(path => path.Length)
+            .FirstOrDefault();
+
+        void Add(string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                candidates.Add(value);
+            }
+        }
+    }
+
+    private static string? ReadProduktklasseValue(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            return ReadString(obj["Name"]) ?? ReadString(obj["name"]);
+        }
+
+        return ReadString(node);
+    }
+
+    private static string? LastProduktklasseChunk(string? produktklasse)
+    {
+        if (string.IsNullOrWhiteSpace(produktklasse))
+        {
+            return null;
+        }
+
+        return produktklasse
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault();
+    }
+
     private static void SetProbenahmeort(JsonArray attributes, string? stelle) =>
         SetNamedAttribute(attributes, "Probenahmeort Wasserprobe", stelle, "Probenahmeort Wasserprobe", ".Probenahmeort Wasserprobe");
+
+    private static void SetHiddenReportAttribute(JsonArray attributes, string name, string? value, params string[] aliases)
+    {
+        var canonical = "." + name.TrimStart('.');
+        var names = new List<string> { name, canonical };
+        foreach (var alias in aliases)
+        {
+            names.Add(alias);
+            if (!alias.StartsWith('.'))
+            {
+                names.Add("." + alias);
+            }
+        }
+
+        SetNamedAttribute(attributes, canonical, value, names.ToArray());
+    }
 
     private static void SetNamedAttribute(JsonArray attributes, string canonicalName, string? value, params string[] names)
     {
@@ -404,6 +506,20 @@ public static class BernsWasserAuftragMapper
         }
 
         return parsed.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private static string? FormatEntnahmestelle(EntnahmePayload? entnahme)
+    {
+        if (entnahme is null)
+        {
+            return null;
+        }
+
+        var parts = new[] { entnahme.Objekt, entnahme.Stelle, entnahme.Wassertyp }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim());
+        var text = string.Join(", ", parts);
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     private static string? FormatSampleTime(string? zeitpunkt)
