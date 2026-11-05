@@ -107,6 +107,9 @@ public sealed class ArianaLabClient : IArianaLabClient
 
             var template = await LoadEffektiveVorlageAsync(payload.Auftragsvorlage?.Name, cancellationToken);
             var body = BernsWasserAuftragMapper.Map(payload, template, ProtocolAttributeName);
+            _logger.LogInformation(
+                "Auftrag Probenbezeichnung sent: {Probenbezeichnung}",
+                ReadString(body["Probenbezeichnung"]) ?? "(none)");
             var createPath = string.IsNullOrWhiteSpace(_options.CreatePath)
                 ? DefaultCreatePath
                 : _options.CreatePath;
@@ -133,6 +136,9 @@ public sealed class ArianaLabClient : IArianaLabClient
 
             var createdNode = ParseObject(createdText);
             var auftragId = ReadId(createdNode);
+            _logger.LogInformation(
+                "Auftrag Probenbezeichnung stored: {Probenbezeichnung}",
+                ReadString(createdNode?["Probenbezeichnung"]) ?? "(none)");
             _logger.LogInformation(
                 "Auftrag created. Id {AuftragId}. Protocol {ProtocolId}. HTTP {Status} POST {Path}",
                 string.IsNullOrWhiteSpace(auftragId) ? "(none)" : auftragId,
@@ -238,7 +244,11 @@ public sealed class ArianaLabClient : IArianaLabClient
                     HttpStatus: (int)response.StatusCode);
             }
 
-            var probenNummer = ReadProbenNummern(node["SuccessValue"] as JsonObject);
+            var successValue = node["SuccessValue"] as JsonObject;
+            var probenNummer = ReadProbenNummern(successValue);
+            _logger.LogInformation(
+                "Auftrag Probenbezeichnung on activation: {Probenbezeichnung}",
+                ReadString(successValue?["Probenbezeichnung"]) ?? "(none)");
             _logger.LogInformation(
                 "Auftrag activated. Id {AuftragId}. Probe {ProbenNummer}. HTTP {Status} POST {Path}",
                 auftragId,

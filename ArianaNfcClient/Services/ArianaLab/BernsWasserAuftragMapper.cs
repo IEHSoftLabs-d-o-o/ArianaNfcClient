@@ -17,7 +17,7 @@ public static class BernsWasserAuftragMapper
         ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt)),
         ("Objekt", p => p.Entnahme?.Objekt),
         ("ZID-Nummer", p => p.Entnahme?.ZidNr),
-        ("Art des Wassers", p => p.Entnahme?.ArtDesWassers),
+        ("Probenbezeichnung", p => p.Entnahme?.ArtDesWassers),
         ("Anzahl Proben Klarheit", p => Count(p.Beschaffenheit?.AnzahlProbenKlarheit)),
         ("Sonstiges", p => p.Beschaffenheit?.Sonstiges),
         ("Anzahl Flaschen Chemie", p => Count(p.Flaschen?.Chemie)),
@@ -26,6 +26,7 @@ public static class BernsWasserAuftragMapper
         ("Prüfbericht an", p => p.Bericht?.An),
         ("Kostenträger", p => p.Bericht?.Kostentraeger),
         ("Auftragsbemerkung", p => p.Bemerkung),
+        ("Prüfberichtsbemerkung", p => p.Bericht?.Pruefberichtsbemerkung ?? p.Bericht?.Pruefberichtbemerkung),
         ("Extra2", p => p.ExtraTexte?.Extra2),
         ("Extra3", p => p.ExtraTexte?.Extra3),
         ("Extra4", p => p.ExtraTexte?.Extra4)
@@ -84,6 +85,7 @@ public static class BernsWasserAuftragMapper
         }
 
         RemoveAttributes(attributes, SensoryAttributeNames);
+        RemoveAttributes(attributes, SuppressedAttributeNames);
         SetProbenahmeort(attributes, payload.Entnahme?.Stelle);
         SetHiddenReportAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebuehr");
         SetHiddenReportAttribute(
@@ -125,6 +127,8 @@ public static class BernsWasserAuftragMapper
     }
 
     private static readonly string[] SensoryAttributeNames = ["Klarheit", "Faerbung", "Färbung", "Geruch", "Temperatur"];
+
+    private static readonly string[] SuppressedAttributeNames = [".Probenart"];
 
     private static readonly (string[] Names, Func<BeschaffenheitPayload, string?> Value)[] BeschaffenheitAnalysen =
     [
@@ -327,9 +331,9 @@ public static class BernsWasserAuftragMapper
             return;
         }
 
-        // ".Probenart" is the Produktgruppe used for limit lookup. A missing group
-        // throws during activation, so the printed Probenart stays a separate attribute.
-        UpsertAttribute(attributes, "Probenart", probenart);
+        // "Probenart:" keeps the Zusatzfeld id distinct from ".Probenart" (Produktgruppe);
+        // the report strips the trailing colon and prints it as "Probenart".
+        SetNamedAttribute(attributes, "Probenart", probenart, "Probenart", "Probenart");
     }
 
     private static string? ReadProduktklasse(JsonObject auftrag)

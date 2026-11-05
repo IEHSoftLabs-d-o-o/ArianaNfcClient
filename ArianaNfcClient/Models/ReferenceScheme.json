@@ -103,7 +103,9 @@
         "Kostentraeger": { "type": "string" },
         "Probenahmegebuehr": { "type": "boolean" },
         "ProbenahmegebuehrUeberLabor": { "type": "boolean" },
-        "UnterschriftDatum": { "type": "string" }
+        "UnterschriftDatum": { "type": "string" },
+        "Pruefberichtsbemerkung": { "type": "string" },
+        "Pruefberichtbemerkung": { "type": "string" }
       }
     },
     "Bemerkung": { "type": "string" }

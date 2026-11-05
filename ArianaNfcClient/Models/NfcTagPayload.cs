@@ -174,4 +174,10 @@ public sealed class BerichtPayload
 
     [JsonPropertyName("UnterschriftDatum")]
     public string? UnterschriftDatum { get; set; }
+
+    [JsonPropertyName("Pruefberichtsbemerkung")]
+    public string? Pruefberichtsbemerkung { get; set; }
+
+    [JsonPropertyName("Pruefberichtbemerkung")]
+    public string? Pruefberichtbemerkung { get; set; }
 }
