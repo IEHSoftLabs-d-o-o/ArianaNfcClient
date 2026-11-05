@@ -9,6 +9,7 @@ public sealed class ArianaLabOptions
     public string Password { get; set; } = string.Empty;
     public bool AutoActivateAuftrag { get; set; } = true;
     public bool DeleteAuftragOnActivationFailure { get; set; } = false;
+    public List<string> HealthAuthorities { get; set; } = [];
     public string CreatePath { get; set; } = string.Empty;
     public string ProtocolAttributeName { get; set; } = DefaultProtocolAttributeName;
 

@@ -78,27 +78,31 @@ public partial class MainViewModel : ObservableObject
             _options.Username,
             _options.Password,
             _options.AutoActivateAuftrag,
-            _options.DeleteAuftragOnActivationFailure);
+            _options.DeleteAuftragOnActivationFailure,
+            _options.HealthAuthorities);
 
     public void SaveConnection(
         string baseUrl,
         string username,
         string password,
         bool autoActivateAuftrag,
-        bool deleteAuftragOnActivationFailure)
+        bool deleteAuftragOnActivationFailure,
+        IReadOnlyList<string> healthAuthorities)
     {
         var settings = new ConnectionSettings(
             baseUrl.Trim(),
             username.Trim(),
             password,
             autoActivateAuftrag,
-            deleteAuftragOnActivationFailure);
+            deleteAuftragOnActivationFailure,
+            healthAuthorities);
         _connectionSettings.Save(settings);
         _options.BaseUrl = settings.BaseUrl;
         _options.Username = settings.Username;
         _options.Password = settings.Password;
         _options.AutoActivateAuftrag = settings.AutoActivateAuftrag;
         _options.DeleteAuftragOnActivationFailure = settings.DeleteAuftragOnActivationFailure;
+        _options.HealthAuthorities = settings.HealthAuthorities?.ToList() ?? [];
         _arianaLabClient.ApplyConnection();
         ShowConnection();
     }

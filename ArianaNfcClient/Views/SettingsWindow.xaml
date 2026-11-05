@@ -18,6 +18,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
@@ -56,8 +57,78 @@
                          PasswordChanged="Setting_OnChanged" />
         </StackPanel>
 
+        <Grid x:Name="HealthAuthoritiesRow"
+              Grid.Row="3"
+              Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="HealthAuthoritiesLabel"
+                       Grid.Column="0"
+                       Text="Gesundheitsämter (0)"
+                       VerticalAlignment="Center"
+                       Foreground="#495057" />
+            <Button Grid.Column="1"
+                    Content="Datei laden..."
+                    Height="32"
+                    Margin="8,0,0,0"
+                    Padding="10,0"
+                    Background="#FFFFFF"
+                    Foreground="#212529"
+                    BorderBrush="#DEE2E6"
+                    Click="LoadHealthAuthoritiesButton_OnClick" />
+            <ToggleButton x:Name="HealthAuthoritiesToggle"
+                          Grid.Column="2"
+                          Content="…"
+                          Width="32"
+                          Height="32"
+                          Margin="8,0,0,0"
+                          Background="#FFFFFF"
+                          Foreground="#212529"
+                          BorderBrush="#DEE2E6"
+                          IsEnabled="False"
+                          Checked="HealthAuthoritiesToggle_OnChecked"
+                          Unchecked="HealthAuthoritiesToggle_OnUnchecked" />
+            <Popup x:Name="HealthAuthoritiesPopup"
+                   PlacementTarget="{Binding ElementName=HealthAuthoritiesRow}"
+                   Placement="Bottom"
+                   StaysOpen="False"
+                   AllowsTransparency="True"
+                   Closed="HealthAuthoritiesPopup_OnClosed">
+                <Border Background="#FFFFFF"
+                        BorderBrush="#DEE2E6"
+                        BorderThickness="1"
+                        CornerRadius="2"
+                        MinWidth="{Binding ActualWidth, ElementName=HealthAuthoritiesRow}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="8"
+                                          ShadowDepth="2"
+                                          Opacity="0.25"
+                                          Color="#000000" />
+                    </Border.Effect>
+                    <ScrollViewer MaxHeight="240"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="HealthAuthoritiesList"
+                                      Margin="0,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               Padding="10,6"
+                                               Foreground="#212529"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </Popup>
+        </Grid>
+
         <CheckBox x:Name="AutoActivateBox"
-                  Grid.Row="3"
+                  Grid.Row="4"
                   Margin="0,14,0,0"
                   Content="Auftrag automatisch zu Probe aktivieren"
                   Foreground="#212529"
@@ -66,7 +137,7 @@
                   Unchecked="Setting_OnChanged" />
 
         <CheckBox x:Name="DeleteOnActivationFailureBox"
-                  Grid.Row="4"
+                  Grid.Row="5"
                   Margin="0,10,0,0"
                   Content="Auftrag löschen, wenn Aktivierung fehlschlägt"
                   Foreground="#212529"
@@ -75,7 +146,7 @@
                   Checked="Setting_OnChanged"
                   Unchecked="Setting_OnChanged" />
 
-        <StackPanel Grid.Row="5"
+        <StackPanel Grid.Row="6"
                     Margin="0,20,0,0"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center">

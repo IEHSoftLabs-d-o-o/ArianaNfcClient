@@ -12,4 +12,5 @@ public sealed record ConnectionSettings(
     string Username,
     string Password,
     bool AutoActivateAuftrag = true,
-    bool DeleteAuftragOnActivationFailure = false);
+    bool DeleteAuftragOnActivationFailure = false,
+    IReadOnlyList<string>? HealthAuthorities = null);

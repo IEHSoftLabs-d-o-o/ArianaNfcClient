@@ -50,7 +50,8 @@ public partial class MainWindow
             current.Username,
             current.Password,
             current.AutoActivateAuftrag,
-            current.DeleteAuftragOnActivationFailure)
+            current.DeleteAuftragOnActivationFailure,
+            current.HealthAuthorities ?? [])
         {
             Owner = this
         };
@@ -61,7 +62,8 @@ public partial class MainWindow
                 dialog.Username,
                 dialog.Password,
                 dialog.AutoActivateAuftrag,
-                dialog.DeleteAuftragOnActivationFailure);
+                dialog.DeleteAuftragOnActivationFailure,
+                dialog.HealthAuthorities);
         }
     }
 

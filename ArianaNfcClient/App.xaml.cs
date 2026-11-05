@@ -192,6 +192,7 @@ public partial class App
         options.Password = connection.Password;
         options.AutoActivateAuftrag = connection.AutoActivateAuftrag;
         options.DeleteAuftragOnActivationFailure = connection.DeleteAuftragOnActivationFailure;
+        options.HealthAuthorities = connection.HealthAuthorities?.ToList() ?? [];
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
