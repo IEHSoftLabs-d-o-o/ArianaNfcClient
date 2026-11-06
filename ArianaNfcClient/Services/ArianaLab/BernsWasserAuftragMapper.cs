@@ -9,13 +9,11 @@ public static class BernsWasserAuftragMapper
 {
     private static readonly (string AttributeName, Func<NfcTagPayload, string?> Value)[] AttributeMappings =
     [
-        ("Wassertyp", p => p.Entnahme?.Wassertyp),
         ("Aufbereitung", p => p.Entnahme?.Aufbereitung),
         ("Gesundheitsamt", p => p.Gesundheitsamt?.Kurzname),
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
         ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt)),
-        ("Objekt", p => p.Entnahme?.Objekt),
         ("ZID-Nummer", p => p.Entnahme?.ZidNr),
         ("Probenbezeichnung", p => p.Entnahme?.ArtDesWassers),
         ("Anzahl Proben Klarheit", p => Count(p.Beschaffenheit?.AnzahlProbenKlarheit)),
@@ -48,10 +46,27 @@ public static class BernsWasserAuftragMapper
         "Kostenträger"
     };
 
+    public static bool RequiresKopie(GesundheitsamtPayload? amt) =>
+        !string.IsNullOrWhiteSpace(amt?.Kurzname) &&
+        string.Equals(amt.Weitergabe?.Trim(), "Ja", StringComparison.Ordinal);
+
+    public static string? FindKopie(GesundheitsamtPayload? amt, IReadOnlyList<string>? healthAuthorities)
+    {
+        if (!RequiresKopie(amt) || healthAuthorities is null)
+        {
+            return null;
+        }
+
+        var kurzname = amt!.Kurzname!.Trim();
+        return healthAuthorities.FirstOrDefault(entry =>
+            entry.Contains(kurzname, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static JsonObject Map(
         NfcTagPayload payload,
         JsonObject? templateAuftrag,
-        string? protocolAttributeName = null)
+        string? protocolAttributeName = null,
+        IReadOnlyList<string>? healthAuthorities = null)
     {
         var auftrag = templateAuftrag is null
             ? new JsonObject()
@@ -86,7 +101,6 @@ public static class BernsWasserAuftragMapper
 
         RemoveAttributes(attributes, SensoryAttributeNames);
         RemoveAttributes(attributes, SuppressedAttributeNames);
-        SetProbenahmeort(attributes, payload.Entnahme?.Stelle);
         SetHiddenReportAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebuehr");
         SetHiddenReportAttribute(
             attributes,
@@ -108,6 +122,12 @@ public static class BernsWasserAuftragMapper
             {
                 UpsertAttribute(attributes, name, value);
             }
+        }
+
+        var kopie = FindKopie(payload.Gesundheitsamt, healthAuthorities);
+        if (kopie is not null)
+        {
+            UpsertAttribute(attributes, "Kopie", kopie);
         }
 
         var protocolName = string.IsNullOrWhiteSpace(protocolAttributeName)
@@ -386,9 +406,6 @@ public static class BernsWasserAuftragMapper
             .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .LastOrDefault();
     }
-
-    private static void SetProbenahmeort(JsonArray attributes, string? stelle) =>
-        SetNamedAttribute(attributes, "Probenahmeort Wasserprobe", stelle, "Probenahmeort Wasserprobe", ".Probenahmeort Wasserprobe");
 
     private static void SetHiddenReportAttribute(JsonArray attributes, string name, string? value, params string[] aliases)
     {

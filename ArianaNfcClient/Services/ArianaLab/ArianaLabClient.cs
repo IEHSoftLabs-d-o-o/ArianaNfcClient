@@ -106,7 +106,19 @@ public sealed class ArianaLabClient : IArianaLabClient
             }
 
             var template = await LoadEffektiveVorlageAsync(payload.Auftragsvorlage?.Name, cancellationToken);
-            var body = BernsWasserAuftragMapper.Map(payload, template, ProtocolAttributeName);
+            if (BernsWasserAuftragMapper.RequiresKopie(payload.Gesundheitsamt) &&
+                BernsWasserAuftragMapper.FindKopie(payload.Gesundheitsamt, _options.HealthAuthorities) is null)
+            {
+                _logger.LogWarning(
+                    "No HealthAuthorities entry contains Kurzname {Kurzname}; Zusatzfeld Kopie not set",
+                    payload.Gesundheitsamt?.Kurzname?.Trim());
+            }
+
+            var body = BernsWasserAuftragMapper.Map(
+                payload,
+                template,
+                ProtocolAttributeName,
+                _options.HealthAuthorities);
             _logger.LogInformation(
                 "Auftrag Probenbezeichnung sent: {Probenbezeichnung}",
                 ReadString(body["Probenbezeichnung"]) ?? "(none)");
