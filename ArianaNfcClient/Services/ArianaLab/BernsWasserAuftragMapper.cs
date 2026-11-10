@@ -147,7 +147,7 @@ public static class BernsWasserAuftragMapper
 
     private static readonly string[] SensoryAttributeNames = ["Klarheit", "Faerbung", "Färbung", "Geruch", "Temperatur"];
 
-    private static readonly string[] SuppressedAttributeNames = [".Probenart", "Gesundheitsamt", ".Gesundheitsamt"];
+    private static readonly string[] SuppressedAttributeNames = [".Probenart", "Probenart", "Probenart:", "Gesundheitsamt", ".Gesundheitsamt"];
 
     private static readonly (string[] Names, Func<BeschaffenheitPayload, string?> Value)[] BeschaffenheitAnalysen =
     [
@@ -350,9 +350,8 @@ public static class BernsWasserAuftragMapper
             return;
         }
 
-        // "Probenart:" keeps the Zusatzfeld id distinct from ".Probenart" (Produktgruppe);
-        // the report strips the trailing colon and prints it as "Probenart".
-        SetNamedAttribute(attributes, "Probenart", probenart, "Probenart", "Probenart");
+        // ".Probenart" becomes the sample's Produktgruppe; the water report prints it as "Probenart".
+        UpsertAttribute(attributes, ".Probenart", probenart);
     }
 
     private static string? ReadProduktklasse(JsonObject auftrag)
