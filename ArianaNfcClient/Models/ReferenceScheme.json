@@ -57,6 +57,7 @@
       "properties": {
         "Zeitpunkt": { "type": "string" },
         "Objekt": { "type": "string" },
+        "Nachprobe": { "type": "string" },
         "ZidNr": { "type": "string" },
         "ArtDesWassers": { "type": "string" },
         "Wassertyp": { "type": "string" },

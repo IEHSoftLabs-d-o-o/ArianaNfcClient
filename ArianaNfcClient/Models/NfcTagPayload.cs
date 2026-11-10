@@ -97,6 +97,9 @@ public sealed class EntnahmePayload
     [JsonPropertyName("Objekt")]
     public string? Objekt { get; set; }
 
+    [JsonPropertyName("Nachprobe")]
+    public string? Nachprobe { get; set; }
+
     [JsonPropertyName("ZidNr")]
     public string? ZidNr { get; set; }
 

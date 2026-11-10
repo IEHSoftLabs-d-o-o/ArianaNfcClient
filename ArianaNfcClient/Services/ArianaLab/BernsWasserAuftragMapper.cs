@@ -129,6 +129,11 @@ public static class BernsWasserAuftragMapper
             UpsertAttribute(attributes, "Kopie", kopie);
         }
 
+        if (string.Equals(payload.Entnahme?.Nachprobe?.Trim(), "Ja", StringComparison.Ordinal))
+        {
+            UpsertAttribute(attributes, "Bemerkung", "Nachprobe");
+        }
+
         var protocolName = string.IsNullOrWhiteSpace(protocolAttributeName)
             ? ArianaLabOptions.DefaultProtocolAttributeName
             : protocolAttributeName;
