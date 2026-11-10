@@ -10,7 +10,6 @@ public static class BernsWasserAuftragMapper
     private static readonly (string AttributeName, Func<NfcTagPayload, string?> Value)[] AttributeMappings =
     [
         ("Aufbereitung", p => p.Entnahme?.Aufbereitung),
-        ("Gesundheitsamt", p => p.Gesundheitsamt?.Kurzname),
         ("TeisKreisNummer", p => p.Gesundheitsamt?.TeisKreisNummer),
         ("Weitergabe", p => p.Gesundheitsamt?.Weitergabe),
         ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt)),
@@ -148,7 +147,7 @@ public static class BernsWasserAuftragMapper
 
     private static readonly string[] SensoryAttributeNames = ["Klarheit", "Faerbung", "Färbung", "Geruch", "Temperatur"];
 
-    private static readonly string[] SuppressedAttributeNames = [".Probenart"];
+    private static readonly string[] SuppressedAttributeNames = [".Probenart", "Gesundheitsamt", ".Gesundheitsamt"];
 
     private static readonly (string[] Names, Func<BeschaffenheitPayload, string?> Value)[] BeschaffenheitAnalysen =
     [
