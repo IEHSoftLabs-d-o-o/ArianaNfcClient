@@ -107,13 +107,13 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
                 $"Format={payload.Format ?? "(null)"}");
         }
 
-        if (payload.Version != 9)
+        if (payload.Version != 11)
         {
             return new TagValidationResult(
                 false,
                 Pretty(node),
                 null,
-                "Feld \"Version\" muss 9 sein.",
+                "Feld \"Version\" muss 11 sein.",
                 $"Version={payload.Version?.ToString() ?? "(null)"}");
         }
 

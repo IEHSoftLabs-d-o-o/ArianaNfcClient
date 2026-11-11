@@ -69,7 +69,6 @@
       "type": "object",
       "properties": {
         "Klarheit": { "type": "string" },
-        "AnzahlProbenKlarheit": { "type": "integer" },
         "Faerbung": { "type": "string" },
         "Geruch": { "type": "string" },
         "Temperatur": { "type": "number" },
@@ -98,15 +97,13 @@
     },
     "Bericht": {
       "type": "object",
-      "required": ["Probenahmegebuehr", "ProbenahmegebuehrUeberLabor"],
+      "required": ["ProbenahmegebuehrUeberLabor"],
       "properties": {
         "An": { "type": "string" },
         "Kostentraeger": { "type": "string" },
-        "Probenahmegebuehr": { "type": "boolean" },
         "ProbenahmegebuehrUeberLabor": { "type": "boolean" },
         "UnterschriftDatum": { "type": "string" },
-        "Pruefberichtsbemerkung": { "type": "string" },
-        "Pruefberichtbemerkung": { "type": "string" }
+        "ArtDerProbenahme": { "type": "string" }
       }
     },
     "Bemerkung": { "type": "string" }

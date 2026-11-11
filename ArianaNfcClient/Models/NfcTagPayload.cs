@@ -121,9 +121,6 @@ public sealed class BeschaffenheitPayload
     [JsonPropertyName("Klarheit")]
     public string? Klarheit { get; set; }
 
-    [JsonPropertyName("AnzahlProbenKlarheit")]
-    public int? AnzahlProbenKlarheit { get; set; }
-
     [JsonPropertyName("Faerbung")]
     public string? Faerbung { get; set; }
 
@@ -169,18 +166,12 @@ public sealed class BerichtPayload
     [JsonPropertyName("Kostentraeger")]
     public string? Kostentraeger { get; set; }
 
-    [JsonPropertyName("Probenahmegebuehr")]
-    public bool? Probenahmegebuehr { get; set; }
-
     [JsonPropertyName("ProbenahmegebuehrUeberLabor")]
     public bool? ProbenahmegebuehrUeberLabor { get; set; }
 
     [JsonPropertyName("UnterschriftDatum")]
     public string? UnterschriftDatum { get; set; }
 
-    [JsonPropertyName("Pruefberichtsbemerkung")]
-    public string? Pruefberichtsbemerkung { get; set; }
-
-    [JsonPropertyName("Pruefberichtbemerkung")]
-    public string? Pruefberichtbemerkung { get; set; }
+    [JsonPropertyName("ArtDerProbenahme")]
+    public string? ArtDerProbenahme { get; set; }
 }

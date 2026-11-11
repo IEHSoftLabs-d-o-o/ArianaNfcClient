@@ -15,7 +15,6 @@ public static class BernsWasserAuftragMapper
         ("Probenahme (Zeit)", p => FormatSampleTime(p.Entnahme?.Zeitpunkt)),
         ("ZID-Nummer", p => p.Entnahme?.ZidNr),
         ("Probenbezeichnung", p => p.Entnahme?.ArtDesWassers),
-        ("Anzahl Proben Klarheit", p => Count(p.Beschaffenheit?.AnzahlProbenKlarheit)),
         ("Sonstiges", p => p.Beschaffenheit?.Sonstiges),
         ("Anzahl Flaschen Chemie", p => Count(p.Flaschen?.Chemie)),
         ("Anzahl Flaschen Mikrobiologie", p => Count(p.Flaschen?.Mikrobiologie)),
@@ -23,7 +22,7 @@ public static class BernsWasserAuftragMapper
         ("Prüfbericht an", p => p.Bericht?.An),
         ("Kostenträger", p => p.Bericht?.Kostentraeger),
         ("Auftragsbemerkung", p => p.Bemerkung),
-        ("Prüfberichtsbemerkung", p => p.Bericht?.Pruefberichtsbemerkung ?? p.Bericht?.Pruefberichtbemerkung),
+        ("Art der Probenahme", p => p.Bericht?.ArtDerProbenahme),
         ("Extra2", p => p.ExtraTexte?.Extra2),
         ("Extra3", p => p.ExtraTexte?.Extra3),
         ("Extra4", p => p.ExtraTexte?.Extra4)
@@ -32,7 +31,6 @@ public static class BernsWasserAuftragMapper
     // A leading '.' is removed when the order is activated and keeps the Zusatzfeld off the Prüfbericht.
     private static readonly HashSet<string> NotPrintedOnReport = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Probenahmegebühr",
         "Probenahmegebühr über Labor",
         "Datum der Unterschrift",
         "Aufbereitung",
@@ -42,7 +40,8 @@ public static class BernsWasserAuftragMapper
         "Anzahl Flaschen Mikrobiologie",
         "Anzahl Flaschen PH / Leitfähigkeit",
         "Prüfbericht an",
-        "Kostenträger"
+        "Kostenträger",
+        "Auftragsbemerkung"
     };
 
     public static bool RequiresKopie(GesundheitsamtPayload? amt) =>
@@ -100,7 +99,6 @@ public static class BernsWasserAuftragMapper
 
         RemoveAttributes(attributes, SensoryAttributeNames);
         RemoveAttributes(attributes, SuppressedAttributeNames);
-        SetHiddenReportAttribute(attributes, "Probenahmegebühr", FormatBool(payload.Bericht?.Probenahmegebuehr), "Probenahmegebuehr");
         SetHiddenReportAttribute(
             attributes,
             "Probenahmegebühr über Labor",
