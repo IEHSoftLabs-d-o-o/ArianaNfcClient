@@ -22,7 +22,7 @@ public static class BernsWasserAuftragMapper
         ("Prüfbericht an", p => p.Bericht?.An),
         ("Kostenträger", p => p.Bericht?.Kostentraeger),
         ("Auftragsbemerkung", p => p.Bemerkung),
-        ("Art der Probenahme", p => p.Bericht?.ArtDerProbenahme),
+        ("Art der Probenahme", p => FormatArtDerProbenahme(p.Bericht?.ArtDerProbenahme)),
         ("Extra2", p => p.ExtraTexte?.Extra2),
         ("Extra3", p => p.ExtraTexte?.Extra3),
         ("Extra4", p => p.ExtraTexte?.Extra4)
@@ -42,6 +42,20 @@ public static class BernsWasserAuftragMapper
         "Prüfbericht an",
         "Kostenträger",
         "Auftragsbemerkung"
+    };
+
+    private static readonly Dictionary<string, string> ArtDerProbenahmeTexte = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Zweck a"] = "Die Probenahme erfolgte nach DIN EN ISO 19458:2006-12, Zweck a.",
+        ["Zweck b"] = "Die Probenahme erfolgte nach DIN EN ISO 19458:2006-12, Zweck b.",
+        ["Zweck c"] = "Die Probenahme erfolgte nach DIN EN ISO 19458:2006-12, Zweck c.",
+        ["Zweck b mit Stichprobe"] =
+            "Die Probenahme zur mikrobiologischen Untersuchung erfolgte nach DIN EN ISO 19458:2006-12, Zweck b. Die Probenahme zur chemischen Untersuchung erfolgte gemäß Empfehlung des Umweltbundesamtes (2018-12-18), als Zufallsstichprobe.",
+        ["Zweck b mit Stichiprobe"] =
+            "Die Probenahme zur mikrobiologischen Untersuchung erfolgte nach DIN EN ISO 19458:2006-12, Zweck b. Die Probenahme zur chemischen Untersuchung erfolgte gemäß Empfehlung des Umweltbundesamtes (2018-12-18), als Zufallsstichprobe.",
+        ["Schöpfprobe"] = "Die Probenahme erfolgte nach DIN EN ISO 19458:2006-12, als Schöpfprobe.",
+        ["Auffangprobe (Eisbereiter)"] =
+            "Die Probenahme erfolgte nach DIN EN ISO 19458:2006-12, Zweck c (aus Eisbereiter aufgefangen)."
     };
 
     public static bool RequiresKopie(GesundheitsamtPayload? amt) =>
@@ -537,11 +551,39 @@ public static class BernsWasserAuftragMapper
             return null;
         }
 
-        var parts = new[] { entnahme.Objekt, entnahme.Stelle, entnahme.Wassertyp }
+        var parts = new[] { entnahme.Objekt, entnahme.Stelle, FormatWassertyp(entnahme.Wassertyp) }
             .Where(part => !string.IsNullOrWhiteSpace(part))
             .Select(part => part!.Trim());
         var text = string.Join(", ", parts);
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static string? FormatWassertyp(string? wassertyp)
+    {
+        if (string.IsNullOrWhiteSpace(wassertyp))
+        {
+            return null;
+        }
+
+        var trimmed = wassertyp.Trim();
+        return trimmed.ToLowerInvariant() switch
+        {
+            "kaltwasser" => "PWC",
+            "heisswasser" or "heißwasser" => "PWH",
+            "mischwasser" => "MW",
+            _ => trimmed
+        };
+    }
+
+    private static string? FormatArtDerProbenahme(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return ArtDerProbenahmeTexte.TryGetValue(trimmed, out var text) ? text : trimmed;
     }
 
     private static string? FormatSampleTime(string? zeitpunkt)
