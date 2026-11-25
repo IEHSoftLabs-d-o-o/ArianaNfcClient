@@ -39,7 +39,7 @@ public sealed class TagPayloadValidator : ITagPayloadValidator
             node = JsonNode.Parse(trimmed);
             JsonUnicodeEscapes.UnescapeInPlace(node);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
         {
             return new TagValidationResult(
                 false,

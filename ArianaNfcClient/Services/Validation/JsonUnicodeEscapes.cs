@@ -9,7 +9,7 @@ namespace ArianaNfcClient.Services.Validation;
 internal static class JsonUnicodeEscapes
 {
     private static readonly Regex UnicodeEscape = new(
-        @"\\u([0-9a-fA-F]{4})",
+        @"\\u([dD][89abAB][0-9a-fA-F]{2})\\u([dD][c-fC-F][0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})",
         RegexOptions.Compiled);
 
     public static readonly JsonSerializerOptions RelaxedWrite = new()
@@ -69,8 +69,16 @@ internal static class JsonUnicodeEscapes
 
         return UnicodeEscape.Replace(value, match =>
         {
-            var code = int.Parse(match.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            return char.ConvertFromUtf32(code);
+            if (match.Groups[1].Success)
+            {
+                return new string([ParseCodeUnit(match.Groups[1].Value), ParseCodeUnit(match.Groups[2].Value)]);
+            }
+
+            var unit = ParseCodeUnit(match.Groups[3].Value);
+            return char.IsSurrogate(unit) ? match.Value : unit.ToString();
         });
     }
+
+    private static char ParseCodeUnit(string hex) =>
+        (char)int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 }

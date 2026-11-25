@@ -95,12 +95,12 @@ public static class BernsWasserAuftragMapper
         SetString(auftrag, "Probenbezeichnung", FormatEntnahmestelle(payload.Entnahme));
         SetString(auftrag, "Eingangstemperatur", payload.Beschaffenheit?.Temperatur?.ToString(CultureInfo.InvariantCulture));
 
-        if (DateTimeOffset.TryParse(payload.Entnahme?.Zeitpunkt, out var entnahme))
+        if (TryParseLocal(payload.Entnahme?.Zeitpunkt, out var entnahme))
         {
             auftrag["Probenahmedatum"] = entnahme.UtcDateTime.ToString("o");
         }
 
-        if (DateTimeOffset.TryParse(payload.Protokoll?.Erstellt, out var erstellt))
+        if (TryParseLocal(payload.Protokoll?.Erstellt, out var erstellt))
         {
             auftrag["Probeneingang"] = erstellt.UtcDateTime.ToString("o");
         }
@@ -156,7 +156,6 @@ public static class BernsWasserAuftragMapper
 
         SetProbenartFromProduktklasse(auftrag, attributes);
         FilterAnalysen(auftrag, payload.Analysen);
-        EnsureAnalysenFromTag(auftrag, payload.Analysen);
         RenameExtraAnalysen(auftrag, payload.ExtraTexte);
         ApplyBeschaffenheitToAnalysen(auftrag, payload.Beschaffenheit);
         return auftrag;
@@ -292,28 +291,41 @@ public static class BernsWasserAuftragMapper
         return null;
     }
 
-    private static void EnsureAnalysenFromTag(JsonObject auftrag, List<string>? analysen)
+    public static IReadOnlyList<string> FindUnknownAnalysen(JsonObject? templateAuftrag, List<string>? wanted)
     {
-        if (analysen is null || analysen.Count == 0)
+        if (wanted is null || wanted.Count == 0)
         {
-            return;
+            return [];
         }
 
-        if (auftrag["Positionen"] is JsonArray existing && existing.Count > 0)
+        var known = new List<string>();
+        if (templateAuftrag?["Positionen"] is JsonArray positionen)
         {
-            return;
+            foreach (var positionNode in positionen)
+            {
+                if (positionNode is not JsonObject position || position["Analysen"] is not JsonArray analysen)
+                {
+                    continue;
+                }
+
+                foreach (var analyseNode in analysen)
+                {
+                    var name = ReadAnalyseName(analyseNode);
+                    if (name is not null)
+                    {
+                        known.Add(name);
+                    }
+                }
+            }
         }
 
-        var items = new JsonArray();
-        foreach (var name in analysen)
-        {
-            items.Add(new JsonObject { ["Name"] = name });
-        }
-
-        auftrag["Positionen"] = new JsonArray
-        {
-            new JsonObject { ["Analysen"] = items }
-        };
+        return wanted
+            .Select(name => name?.Trim())
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => name!)
+            .Where(name => !known.Any(k => string.Equals(k.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static void FilterAnalysen(JsonObject auftrag, List<string>? wanted)
@@ -323,10 +335,9 @@ public static class BernsWasserAuftragMapper
             return;
         }
 
-        var anyMatch = false;
-        foreach (var positionNode in positionen)
+        for (var i = positionen.Count - 1; i >= 0; i--)
         {
-            if (positionNode is not JsonObject position || position["Analysen"] is not JsonArray analysen)
+            if (positionen[i] is not JsonObject position || position["Analysen"] is not JsonArray analysen)
             {
                 continue;
             }
@@ -334,30 +345,29 @@ public static class BernsWasserAuftragMapper
             var kept = new JsonArray();
             foreach (var analyseNode in analysen)
             {
-                var name = analyseNode is JsonObject o
-                    ? o["Name"]?.GetValue<string>()
-                    : analyseNode?.GetValue<string>();
+                var name = ReadAnalyseName(analyseNode);
                 if (name is not null && MatchesAnalyse(name, wanted))
                 {
                     kept.Add(analyseNode!.DeepClone());
-                    anyMatch = true;
                 }
             }
 
-            if (kept.Count > 0)
+            if (kept.Count == 0)
+            {
+                positionen.RemoveAt(i);
+            }
+            else
             {
                 position["Analysen"] = kept;
             }
         }
-
-        _ = anyMatch;
     }
 
+    private static string? ReadAnalyseName(JsonNode? analyseNode) =>
+        analyseNode is JsonObject analyse ? ReadString(analyse["Name"]) : ReadString(analyseNode);
+
     private static bool MatchesAnalyse(string name, IEnumerable<string> wanted) =>
-        wanted.Any(w =>
-            name.Equals(w, StringComparison.OrdinalIgnoreCase) ||
-            name.Contains(w, StringComparison.OrdinalIgnoreCase) ||
-            w.Contains(name, StringComparison.OrdinalIgnoreCase));
+        wanted.Any(w => string.Equals(name.Trim(), w.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static void SetProbenartFromProduktklasse(JsonObject auftrag, JsonArray attributes)
     {
@@ -588,11 +598,24 @@ public static class BernsWasserAuftragMapper
 
     private static string? FormatSampleTime(string? zeitpunkt)
     {
-        if (!DateTimeOffset.TryParse(zeitpunkt, out var entnahme))
+        if (!TryParseLocal(zeitpunkt, out var entnahme))
         {
             return null;
         }
 
         return entnahme.ToString("HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryParseLocal(string? value, out DateTimeOffset local)
+    {
+        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) ||
+            DateTimeOffset.TryParse(value, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out parsed))
+        {
+            local = parsed.ToLocalTime();
+            return true;
+        }
+
+        local = default;
+        return false;
     }
 }

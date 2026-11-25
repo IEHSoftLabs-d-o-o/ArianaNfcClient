@@ -68,4 +68,8 @@
     <Folder Include="Properties\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ArianaNfcClient.Tests" />
+  </ItemGroup>
+
 </Project>

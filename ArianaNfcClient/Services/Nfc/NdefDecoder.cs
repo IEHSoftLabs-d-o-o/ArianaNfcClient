@@ -99,9 +99,14 @@ public static class NdefDecoder
         return false;
     }
 
-    public static bool TryExtractNdefFromType2(ReadOnlySpan<byte> memory, out byte[]? ndef, out string? error)
+    public static bool TryExtractNdefFromType2(
+        ReadOnlySpan<byte> memory,
+        out byte[]? ndef,
+        out bool ndefTlvFound,
+        out string? error)
     {
         ndef = null;
+        ndefTlvFound = false;
         error = null;
 
         // Capability Container is at page 3 (offset 12) on NTAG / Ultralight.
@@ -123,6 +128,7 @@ public static class NdefDecoder
 
             if (i + 1 >= memory.Length)
             {
+                ndefTlvFound = true;
                 error = "Type 2 TLV is truncated.";
                 return false;
             }
@@ -133,6 +139,7 @@ public static class NdefDecoder
             {
                 if (i + 3 >= memory.Length)
                 {
+                    ndefTlvFound = true;
                     error = "Type 2 TLV long-length is truncated.";
                     return false;
                 }
@@ -148,14 +155,21 @@ public static class NdefDecoder
 
             if (tlvType == 0x03)
             {
-                var available = Math.Min(length, memory.Length - i - headerSize);
-                if (available <= 0)
+                ndefTlvFound = true;
+                var available = memory.Length - i - headerSize;
+                if (length == 0)
                 {
                     error = "NDEF TLV has no payload.";
                     return false;
                 }
 
-                ndef = [.. memory.Slice(i + headerSize, available)];
+                if (length > available)
+                {
+                    error = $"NDEF TLV declares {length} bytes, only {available} were read.";
+                    return false;
+                }
+
+                ndef = [.. memory.Slice(i + headerSize, length)];
                 return true;
             }
 

@@ -105,7 +105,25 @@ public sealed class ArianaLabClient : IArianaLabClient
                 return existing;
             }
 
-            var template = await LoadEffektiveVorlageAsync(payload.Auftragsvorlage?.Name, cancellationToken);
+            var (template, vorlageFailure) = await LoadEffektiveVorlageAsync(payload.Auftragsvorlage?.Name, cancellationToken);
+            if (vorlageFailure is not null)
+            {
+                return vorlageFailure;
+            }
+
+            var unknownAnalysen = BernsWasserAuftragMapper.FindUnknownAnalysen(template, payload.Analysen);
+            if (unknownAnalysen.Count > 0)
+            {
+                var list = string.Join(", ", unknownAnalysen);
+                _logger.LogError(
+                    "Auftrag creation failed. Analysen not in Auftragsvorlage {Vorlage}: {Analysen}",
+                    payload.Auftragsvorlage?.Name,
+                    list);
+                return VorlageFailed(
+                    $"Analysen nicht in der Auftragsvorlage enthalten: {list}",
+                    $"Auftragsvorlage '{payload.Auftragsvorlage?.Name}' does not contain: {list}");
+            }
+
             if (BernsWasserAuftragMapper.RequiresKopie(payload.Gesundheitsamt) &&
                 BernsWasserAuftragMapper.FindKopie(payload.Gesundheitsamt, _options.HealthAuthorities) is null)
             {
@@ -503,11 +521,16 @@ public sealed class ArianaLabClient : IArianaLabClient
             : wert.ToString();
     }
 
-    private async Task<JsonObject?> LoadEffektiveVorlageAsync(string? name, CancellationToken cancellationToken)
+    private async Task<(JsonObject? Template, AuftragCreateResult? Failure)> LoadEffektiveVorlageAsync(
+        string? name,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return null;
+            _logger.LogError("Auftrag creation failed. Tag has no Auftragsvorlage name");
+            return (null, VorlageFailed(
+                "Das Tag enthält keine Auftragsvorlage.",
+                "Auftragsvorlage.Name is empty."));
         }
 
         var query = JsonSerializer.Serialize(new
@@ -524,17 +547,24 @@ public sealed class ArianaLabClient : IArianaLabClient
             url,
             contentFactory: null,
             cancellationToken);
-        if (!listResponse.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Auftragsvorlage lookup failed: HTTP {Status}", (int)listResponse.StatusCode);
-            return null;
-        }
-
         var listText = await listResponse.Content.ReadAsStringAsync(cancellationToken);
         if (LooksLikeLoginPage(listText))
         {
-            _logger.LogWarning("Auftragsvorlage lookup returned login page");
-            return null;
+            _logger.LogError("Auftragsvorlage lookup returned login page. GET {Url}", url);
+            return (null, LoginFailed(listResponse.StatusCode, $"GET {url}", listText));
+        }
+
+        if (!listResponse.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Auftragsvorlage lookup failed. HTTP {Status} GET {Url}. {Body}",
+                (int)listResponse.StatusCode,
+                url,
+                Trim(listText));
+            return (null, VorlageFailed(
+                "Auftragsvorlage konnte nicht geladen werden.",
+                $"HTTP {(int)listResponse.StatusCode} from GET {url}: {Trim(listText)}",
+                listResponse.StatusCode));
         }
 
         var list = ParseObject(listText);
@@ -543,14 +573,25 @@ public sealed class ArianaLabClient : IArianaLabClient
             : null;
         if (first is null)
         {
-            _logger.LogWarning("Auftragsvorlage '{Name}' was not found.", name);
-            return null;
+            _logger.LogError("Auftragsvorlage '{Name}' was not found.", name);
+            return (null, VorlageFailed(
+                $"Auftragsvorlage '{name}' ist in ArianaLab nicht vorhanden.",
+                $"GET {url} returned no entries.",
+                listResponse.StatusCode));
         }
 
         var effektiveHref = FindLink(first, "effektiveVorlage");
         if (string.IsNullOrWhiteSpace(effektiveHref))
         {
-            return first["Auftrag"] as JsonObject;
+            if (first["Auftrag"] is JsonObject direct)
+            {
+                return (direct, null);
+            }
+
+            _logger.LogError("Auftragsvorlage '{Name}' has no Auftrag object and no effektiveVorlage link.", name);
+            return (null, VorlageFailed(
+                "Auftragsvorlage ist unvollständig.",
+                $"Auftragsvorlage '{name}' has no Auftrag object and no effektiveVorlage link."));
         }
 
         using var effektiveResponse = await SendWithOriginRedirectAsync(
@@ -558,15 +599,40 @@ public sealed class ArianaLabClient : IArianaLabClient
             effektiveHref,
             contentFactory: null,
             cancellationToken);
-        if (!effektiveResponse.IsSuccessStatusCode)
+        var effektiveText = await effektiveResponse.Content.ReadAsStringAsync(cancellationToken);
+        if (LooksLikeLoginPage(effektiveText))
         {
-            _logger.LogWarning("Effektive Vorlage failed: HTTP {Status}", (int)effektiveResponse.StatusCode);
-            return first["Auftrag"] as JsonObject;
+            _logger.LogError("Effektive Vorlage returned login page. GET {Url}", effektiveHref);
+            return (null, LoginFailed(effektiveResponse.StatusCode, $"GET {effektiveHref}", effektiveText));
         }
 
-        var effektiveText = await effektiveResponse.Content.ReadAsStringAsync(cancellationToken);
-        return ParseObject(effektiveText)?["Auftrag"] as JsonObject;
+        if (!effektiveResponse.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Effektive Vorlage failed. HTTP {Status} GET {Url}. {Body}",
+                (int)effektiveResponse.StatusCode,
+                effektiveHref,
+                Trim(effektiveText));
+            return (null, VorlageFailed(
+                "Effektive Auftragsvorlage konnte nicht geladen werden.",
+                $"HTTP {(int)effektiveResponse.StatusCode} from GET {effektiveHref}: {Trim(effektiveText)}",
+                effektiveResponse.StatusCode));
+        }
+
+        if (ParseObject(effektiveText)?["Auftrag"] is not JsonObject effektive)
+        {
+            _logger.LogError("Effektive Vorlage has no Auftrag object. GET {Url}", effektiveHref);
+            return (null, VorlageFailed(
+                "Effektive Auftragsvorlage ist unvollständig.",
+                $"GET {effektiveHref} returned no Auftrag object: {Trim(effektiveText)}",
+                effektiveResponse.StatusCode));
+        }
+
+        return (effektive, null);
     }
+
+    private static AuftragCreateResult VorlageFailed(string message, string details, HttpStatusCode? status = null) =>
+        new(false, message, details, HttpStatus: status is null ? null : (int)status);
 
     private async Task<HttpResponseMessage> PostJsonAsync(
         string path,
@@ -616,8 +682,12 @@ public sealed class ArianaLabClient : IArianaLabClient
                 ? location
                 : new Uri(requestUri, location);
 
-            if (!IsOriginOnlyRedirect(resolved))
+            if (!IsAllowedOriginRedirect(requestUri, resolved))
             {
+                _logger.LogWarning(
+                    "Ignoring redirect from {From} to {To}: only same-host HTTP to HTTPS is followed",
+                    requestUri.GetLeftPart(UriPartial.Authority),
+                    resolved.GetLeftPart(UriPartial.Authority));
                 return response;
             }
 
@@ -654,10 +724,20 @@ public sealed class ArianaLabClient : IArianaLabClient
             or HttpStatusCode.TemporaryRedirect
             or HttpStatusCode.PermanentRedirect;
 
-    private static bool IsOriginOnlyRedirect(Uri location)
+    private static bool IsAllowedOriginRedirect(Uri current, Uri target)
     {
-        var path = location.AbsolutePath;
-        return string.IsNullOrEmpty(path) || path == "/";
+        var path = target.AbsolutePath;
+        if (!string.IsNullOrEmpty(path) && path != "/")
+        {
+            return false;
+        }
+
+        if (!string.Equals(current.IdnHost, target.IdnHost, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return current.Scheme == Uri.UriSchemeHttp && target.Scheme == Uri.UriSchemeHttps;
     }
 
     private static bool LooksLikeLoginPage(string text)
