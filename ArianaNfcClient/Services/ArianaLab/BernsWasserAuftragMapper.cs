@@ -95,12 +95,12 @@ public static class BernsWasserAuftragMapper
         SetString(auftrag, "Probenbezeichnung", FormatEntnahmestelle(payload.Entnahme));
         SetString(auftrag, "Eingangstemperatur", payload.Beschaffenheit?.Temperatur?.ToString(CultureInfo.InvariantCulture));
 
-        if (DateTimeOffset.TryParse(payload.Entnahme?.Zeitpunkt, out var entnahme))
+        if (TryParseLocal(payload.Entnahme?.Zeitpunkt, out var entnahme))
         {
             auftrag["Probenahmedatum"] = entnahme.UtcDateTime.ToString("o");
         }
 
-        if (DateTimeOffset.TryParse(payload.Protokoll?.Erstellt, out var erstellt))
+        if (TryParseLocal(payload.Protokoll?.Erstellt, out var erstellt))
         {
             auftrag["Probeneingang"] = erstellt.UtcDateTime.ToString("o");
         }
@@ -588,11 +588,24 @@ public static class BernsWasserAuftragMapper
 
     private static string? FormatSampleTime(string? zeitpunkt)
     {
-        if (!DateTimeOffset.TryParse(zeitpunkt, out var entnahme))
+        if (!TryParseLocal(zeitpunkt, out var entnahme))
         {
             return null;
         }
 
         return entnahme.ToString("HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryParseLocal(string? value, out DateTimeOffset local)
+    {
+        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) ||
+            DateTimeOffset.TryParse(value, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out parsed))
+        {
+            local = parsed.ToLocalTime();
+            return true;
+        }
+
+        local = default;
+        return false;
     }
 }
