@@ -616,8 +616,12 @@ public sealed class ArianaLabClient : IArianaLabClient
                 ? location
                 : new Uri(requestUri, location);
 
-            if (!IsOriginOnlyRedirect(resolved))
+            if (!IsAllowedOriginRedirect(requestUri, resolved))
             {
+                _logger.LogWarning(
+                    "Ignoring redirect from {From} to {To}: only same-host HTTP to HTTPS is followed",
+                    requestUri.GetLeftPart(UriPartial.Authority),
+                    resolved.GetLeftPart(UriPartial.Authority));
                 return response;
             }
 
@@ -654,10 +658,20 @@ public sealed class ArianaLabClient : IArianaLabClient
             or HttpStatusCode.TemporaryRedirect
             or HttpStatusCode.PermanentRedirect;
 
-    private static bool IsOriginOnlyRedirect(Uri location)
+    private static bool IsAllowedOriginRedirect(Uri current, Uri target)
     {
-        var path = location.AbsolutePath;
-        return string.IsNullOrEmpty(path) || path == "/";
+        var path = target.AbsolutePath;
+        if (!string.IsNullOrEmpty(path) && path != "/")
+        {
+            return false;
+        }
+
+        if (!string.Equals(current.IdnHost, target.IdnHost, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return current.Scheme == Uri.UriSchemeHttp && target.Scheme == Uri.UriSchemeHttps;
     }
 
     private static bool LooksLikeLoginPage(string text)
