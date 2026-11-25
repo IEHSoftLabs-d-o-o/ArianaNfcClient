@@ -85,7 +85,7 @@ public partial class App
                     "Application started. Version {Version}. ArianaLab {BaseUrl}",
                     version,
                     string.IsNullOrWhiteSpace(options.BaseUrl) ? "(not configured)" : options.BaseUrl);
-
+                
                 var window = _host.Services.GetRequiredService<MainWindow>();
                 window.Show();
             }
@@ -96,9 +96,10 @@ public partial class App
                 throw;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // ignored
+            MessageBox.Show($"Failed to start this app!\n\n{ex.Message}", "Exception", MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
