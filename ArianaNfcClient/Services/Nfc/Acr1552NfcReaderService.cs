@@ -485,10 +485,10 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             return false;
         }
 
-        var ndef = ReadBinaryRange(reader, 2, nlen);
+        var ndef = ReadBinaryRange(reader, 2, nlen, out var failure);
         if (ndef is null)
         {
-            error = "Type 4 NDEF body could not be read.";
+            error = $"Type 4 NDEF body could not be read ({failure}).";
             return false;
         }
 
@@ -577,12 +577,16 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
     private static bool TryDecodeType2Memory(byte[] memory, out string? json, out string? error)
     {
         json = null;
-        if (NdefDecoder.TryExtractNdefFromType2(memory, out var ndef, out error) &&
-            ndef is not null &&
-            NdefDecoder.TryDecodeToText(ndef, out json, out error) &&
-            !string.IsNullOrWhiteSpace(json))
+        if (NdefDecoder.TryExtractNdefFromType2(memory, out var ndef, out var ndefTlvFound, out error))
         {
-            return true;
+            return ndef is not null &&
+                   NdefDecoder.TryDecodeToText(ndef, out json, out error) &&
+                   !string.IsNullOrWhiteSpace(json);
+        }
+
+        if (ndefTlvFound)
+        {
+            return false;
         }
 
         var ascii = Encoding.UTF8.GetString(memory);
@@ -604,8 +608,9 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
         return true;
     }
 
-    private static byte[]? ReadBinaryRange(ICardReader reader, int offset, int length)
+    private static byte[]? ReadBinaryRange(ICardReader reader, int offset, int length, out string? failure)
     {
+        failure = null;
         var buffer = new List<byte>(length);
         var remaining = length;
         var pos = offset;
@@ -617,7 +622,8 @@ public sealed class Acr1552NfcReaderService : INfcReaderService
             var response = Transmit(reader, [0x00, 0xB0, p1, p2, chunk]);
             if (!response.IsSuccess || response.Data.Length == 0)
             {
-                return buffer.Count > 0 ? [.. buffer] : null;
+                failure = $"READ BINARY at offset {pos} SW={response.Status}";
+                return null;
             }
 
             buffer.AddRange(response.Data);
