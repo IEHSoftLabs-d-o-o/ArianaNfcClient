@@ -111,6 +111,19 @@ public sealed class ArianaLabClient : IArianaLabClient
                 return vorlageFailure;
             }
 
+            var unknownAnalysen = BernsWasserAuftragMapper.FindUnknownAnalysen(template, payload.Analysen);
+            if (unknownAnalysen.Count > 0)
+            {
+                var list = string.Join(", ", unknownAnalysen);
+                _logger.LogError(
+                    "Auftrag creation failed. Analysen not in Auftragsvorlage {Vorlage}: {Analysen}",
+                    payload.Auftragsvorlage?.Name,
+                    list);
+                return VorlageFailed(
+                    $"Analysen nicht in der Auftragsvorlage enthalten: {list}",
+                    $"Auftragsvorlage '{payload.Auftragsvorlage?.Name}' does not contain: {list}");
+            }
+
             if (BernsWasserAuftragMapper.RequiresKopie(payload.Gesundheitsamt) &&
                 BernsWasserAuftragMapper.FindKopie(payload.Gesundheitsamt, _options.HealthAuthorities) is null)
             {
